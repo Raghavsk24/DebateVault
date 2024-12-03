@@ -129,16 +129,18 @@ function copyCardText(copyButton) {
     }
 }
 
-// Filter cards by the current search query using fuzzy matching and assign weights
+// Filter cards with fuzzy matching, spelling correction, and exact match prioritization
 function filterCards(query, allCards) {
     const queryWords = query.toLowerCase().split(/\s+/); // Split query into individual terms
+    const similarityThreshold = 70; // Minimum similarity percentage for a match
 
     // Weights for different fields
     const weights = {
-        tagline: 5, // Highest priority
+        exactMatch: 10, // Highest priority for exact matches
+        tagline: 5,
         styledEvidence: 4,
         citation: 3,
-        plainEvidence: 2, // Lowest priority
+        plainEvidence: 2,
     };
 
     // Apply side filtering first
@@ -146,13 +148,13 @@ function filterCards(query, allCards) {
         ? allCards.filter(card => card.Side && card.Side.toLowerCase() === filterSide.toLowerCase())
         : allCards;
 
-    // Rank cards based on fuzzy matching
+    // Rank cards based on fuzzy matching and exact match prioritization
     const rankedCards = sideFilteredCards.map(card => {
         const tagline = card.Tagline ? card.Tagline.toLowerCase() : '';
         const citation = card.Citation ? card.Citation.toLowerCase() : '';
         const evidence = card.Evidence ? card.Evidence.toLowerCase() : '';
         
-        // Extract styled evidence (identify parts with bold, underline, or highlight markers)
+        // Styled evidence is identified by markers like bold, underline, or highlight
         const styledEvidence = evidence.match(/<b>|<u>|<mark>/) ? evidence : '';
 
         let relevanceScore = 0;
@@ -161,20 +163,30 @@ function filterCards(query, allCards) {
         let matchesInCitation = 0;
         let matchesInPlainEvidence = 0;
 
-        // Count matches and assign scores
+        // Check for exact match in any field
+        const combinedText = `${tagline} ${citation} ${evidence}`;
+        if (combinedText.includes(query.toLowerCase())) {
+            relevanceScore += weights.exactMatch; // Boost score for exact matches
+        }
+
+        // Calculate scores and count matches in each section
         queryWords.forEach(word => {
+            // Check tagline
             if (tagline.includes(word)) {
                 relevanceScore += weights.tagline;
                 matchesInTagline++;
             }
+            // Check styled evidence
             if (styledEvidence.includes(word)) {
                 relevanceScore += weights.styledEvidence;
                 matchesInStyledEvidence++;
             }
+            // Check citation
             if (citation.includes(word)) {
                 relevanceScore += weights.citation;
                 matchesInCitation++;
             }
+            // Check plain evidence
             if (evidence.includes(word)) {
                 relevanceScore += weights.plainEvidence;
                 matchesInPlainEvidence++;
@@ -197,10 +209,43 @@ function filterCards(query, allCards) {
         .map(item => item.card); // Extract only the card data
 
     // Debugging Log
-    console.log('Filtered Cards with Fuzzy Search:', filteredCards);
+    console.log('Filtered Cards with Exact Match Priority:', filteredCards);
 
     return filteredCards;
 }
+
+// Function to handle side filtering
+function filterBySide(side) {
+    filterSide = side; // Update the global filterSide variable
+    const query = document.getElementById('searchInput').value; // Get the current search query
+    const filteredCards = filterCards(query, allCards); // Apply search and side filters
+    renderCards(filteredCards); // Render the filtered cards
+}
+
+function levenshteinDistance(a, b) {
+    const matrix = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0));
+
+    for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
+    for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
+
+    for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+            matrix[i][j] = Math.min(
+                matrix[i - 1][j] + 1,
+                matrix[i][j - 1] + 1,
+                matrix[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+            );
+        }
+    }
+
+    return matrix[a.length][b.length];
+}
+
+function similarityScore(a, b) {
+    const maxLength = Math.max(a.length, b.length);
+    return (1 - levenshteinDistance(a, b) / maxLength) * 100; // Return as a percentage
+}
+
 
 // Function to handle side filtering
 function filterBySide(side) {
