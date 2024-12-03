@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DebateVault</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="search-bar">
+            <input
+                type="text"
+                id="searchInput"
+                placeholder="Search cards (e.g economy)"
+                onkeyup="onSearchInputDebounced()"
+            />
+        </div>   
+        
+    
+        <!-- Filter Radios -->
+        <div class="filter-section" id="filterSection">
+            <span style="font-weight: bold; font-size: 12pt; margin-right: 0px; margin-left: 10px;">Side:</span>
+            <label>
+                <input type="radio" name="sideFilter" value="AFF" onclick="filterBySide('Aff')" />
+                Aff
+            </label>
+            <label>
+                <input type="radio" name="sideFilter" value="NEG" onclick="filterBySide('Neg')" />
+                Neg
+            </label>
+            <label>
+                <input type="radio" name="sideFilter" value="All" onclick="filterBySide('')" checked />
+                All
+            </label>
+        </div>
+    
+        <div class="pagination" id="paginationControls" style="text-align: center; margin-top: 20px;"></div>    
+        <div class="card-container" id="cardContainer"></div>
+    </div>
+    
+    <script src="/static/script.js"></script>
+</body>
+</html>
