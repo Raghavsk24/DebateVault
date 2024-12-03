@@ -1,0 +1,190 @@
+body {
+    font-family: 'Times New Roman', Times, serif;
+    padding: 20px;
+    background-color: #fffcfc;
+    display: flex;
+    justify-content: center;
+    flex-direction: column; /* Ensure vertical stacking of elements */
+}
+
+.content {
+    width: 80%;
+    max-width: 1200px;
+}
+
+.container {
+    border: 1px solid blue;
+    border-radius: 20px;
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+    background-color: #ffffff;
+}
+
+.search-bar {
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.search-bar input {
+    width: 60%;
+    padding: 10px;
+    font-size: 14pt;
+    border: 2px solid #2870D7;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: border-color 0.2s;
+}
+
+.search-bar input:focus {
+    border-color: #1A4E9B;
+    outline: none;
+}
+
+.card-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    justify-content: center;
+}
+
+.card {
+    position: relative; /* Essential for positioning the copy button */
+    background: white;
+    padding: 30px;
+    border-radius: 20px;
+    border: 1px solid #D78F28;
+    word-wrap: break-word;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+
+.card {
+    position: relative;
+    background: white;
+    padding: 20px; /* Adjust padding as necessary */
+    border-radius: 20px;
+    border: 1px solid #D78F28; /* Orange border */
+    word-wrap: break-word;
+    max-height: 400px;
+    padding-right: 38px;
+    overflow-y: auto; /* Enable scrolling for long content */
+    box-sizing: border-box; /* Include padding and border in dimensions */
+    scrollbar-gutter: stable; /* Stabilizes the scrollbar inside the padding */
+}
+
+/* Ensure scrollbar does not extend beyond the border */
+.card::-webkit-scrollbar {
+    width: 4px; /* Thin scrollbar width */
+}
+
+.card::-webkit-scrollbar-track {
+    background: #f1f1f1; /* Light background for the scrollbar track */
+    border-radius: 10px; /* Match the border radius */
+    margin: 10px; /* Prevent extending beyond card content */
+}
+
+.card::-webkit-scrollbar-thumb {
+    background: #b9b9b9; /* Gray scrollbar thumb */
+    border-radius: 10px; /* Rounded corners for the thumb */
+}
+
+.card::-webkit-scrollbar-thumb:hover {
+    background: #555; /* Darker gray when hovered */
+}
+
+/* Prevent the scrollbar from overlapping the orange border */
+.card-content {
+    padding: 0; /* Ensure no extra padding inside the card */
+    margin: 0; /* Ensure content doesn't extend beyond the border */
+    overflow: hidden; /* Hide content that might extend beyond the border */
+    max-height: calc(100% - 40px); /* Adjust to keep scrollbar inside the border */
+}
+
+.copy-button-container {
+    position: absolute; /* Absolute positioning within the card */
+    top: 15px; /* Adjust top position */
+    right: 10px; /* Adjust right position */
+    z-index: 10; /* Ensure it stays on top of other elements */
+}
+
+.copy-button-container img {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    transition: transform 0.2s; /* Add hover effect */
+}
+
+.copy-button-container img:hover {
+    transform: scale(1.1); /* Slight zoom on hover */
+}
+
+.additional-info {
+    margin-bottom: 15px;
+    margin-top: -5px;
+}
+
+.additional-info button {
+    font-size: 7pt;
+    background-color: #D78F28;
+    color: #50360f;
+    border: none;
+    border-radius: 4px;
+    padding: 3px 6px;
+    margin: 1px 2px;
+    cursor: default;
+}
+
+.tagline {
+    font-size: 12pt;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.citation {
+    font-size: 7pt;
+    color: rgb(0, 0, 0);
+    margin-bottom: 10px;
+}
+
+.evidence {
+    font-size: 7pt;
+    line-height: 1.5;
+}
+
+.evidence b {
+    font-weight: bold;
+    font-size: 12pt;
+    text-decoration: underline;
+}
+
+.evidence u {
+    text-decoration: underline;
+    font-weight: bold;
+    font-size: 12pt;
+}
+
+.evidence mark {
+    font-weight: bold;
+    text-decoration: underline;
+    background-color: yellow;
+    font-size: 12pt;
+}
+
+.filter-section {
+    text-align: left;
+    margin-bottom: 20px;
+    font-size: 16px;
+}
+
+.filter-section label {
+    margin: 0 5px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.filter-section input[type="radio"] {
+    margin-right: 5px;
+}
+
