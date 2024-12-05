@@ -33,7 +33,23 @@
                 <input type="radio" name="sideFilter" value="All" onclick="filterBySide('')" checked />
                 All
             </label>
+
+            <span style="font-weight: bold; font-size: 12pt; margin-left: 20px;">Debate Type:</span>
+            <label>
+                <input type="radio" name="debateTypeFilter" value="PF" onclick="filterByDebateType('PF')" />
+                PF
+            </label>
+            <label>
+                <input type="radio" name="debateTypeFilter" value="LD" onclick="filterByDebateType('LD')" />
+                LD
+            </label>
+            <label>
+                <input type="radio" name="debateTypeFilter" value="All" onclick="filterByDebateType('')" checked />
+                All
+            </label>
         </div>
+
+
     
         <div class="pagination" id="paginationControls" style="text-align: center; margin-top: 20px;"></div>    
         <div class="card-container" id="cardContainer"></div>
