@@ -1,7 +1,7 @@
 # DebateVault
 
-DebateVault is a wed application based search engine for debate card and debate evidence
----
+- DebateVault is a web application based search engine for debate card and debate evidence
+
 
 ## Features
 
@@ -10,7 +10,7 @@ DebateVault is a wed application based search engine for debate card and debate 
 - **Search:** Find specific cards with fuzzy search.
 - **Copy Functionality:** Easily copy card text with styling maintained. 
 
----
+
 
 ## Installation
 
