@@ -11,6 +11,49 @@
 - **Copy Functionality:** Easily copy card text with styling maintained. 
 
 
+## File Descriptions
+
+### 1. `extract_cards.py`
+This script is responsible for extracting cards for `.docx` files. It loops through case files form bulk downloads on OpenCaseList extracting cards based on mentions of a url (citation) in a paragraph. It then extracts the paragraph in the index behind it as a tagline and the paragraph in the index after it as evidence.
+
+**Features:**
+- Extracts `Tagline`, `Citation`, and `Evidence` from structured files.
+- Identifies the `Side` (Aff/Neg) and `Debate Type` based on file naming conventions.
+- Handles styled text (e.g., bold, underline, and highlight) for evidence.
+
+**Output:** `Raw_Cards.csv` file containing unvalidated cards with the following columns:
+- `Tagline`
+- `Citation`
+- `Evidence`
+- `Side`
+- `Debate_Type`
+- `Topic`
+
+---
+
+### 2. `validate_cards.py`
+This script validates the cards extracted by `extract_cards.py` and appends valid entries to `Valid_Cards.csv`. This script is responsible for checking if each component of the card (tagline, citation and evidence) are correct.
+
+**Features:**
+- Ensures `Tagline` length is between 6 and 50 words.
+- Validates `Citation` for URLs 
+- Filters out `Evidence` with less than 20 words or containing URLs/jargon.
+- Removes duplicate cards 
+
+**Output:** `Valid_Cards.csv` file containing sanitized and validated cards ready for use in the application.
+
+---
+
+### 3. `script.js`
+This JavaScript file tunss the frontend functionality of DebateVault. It manages dynamic card fetching, infinite scrolling, filtering, and search.
+
+**Features:**
+- **Dynamic Fetching:** Fetches cards from the backend api in batches to improve performance.
+- **Infinite Scrolling:** Loads more cards as the user scrolls down the page.
+- **Search and Filtering:** Supports searching cards by keywords and filtering by `Side` and `Debate_Type`.
+- **Copy Functionality:** Enables copying card content while preserving formatting.
+- **Debounced Search:** Implements a debounce mechanism for efficient filtering.
+
 
 ## Installation
 
