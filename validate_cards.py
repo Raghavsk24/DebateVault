@@ -1,3 +1,4 @@
+import os
 import re
 import pandas as pd
 
@@ -32,26 +33,25 @@ def is_row_valid(row):
         if not (6 <= len(tagline.split()) <= 50):
             return False
 
-
         # Validate Citation
         citation = str(row['Citation'])
         if not url_pattern.search(citation): # Check that citation has url
             return False
         if len(citation.split()) >= 150: # Check that citation is less than 150 words
             return False
-        if any(term in citation for term in debate_terms): # Check that ciation doens't have any debate terms
+        if any(term in citation for term in debate_terms): # Check that citation doesn't have any debate terms
             return False
 
         # Validate evidence
         evidence = str(row['Evidence'])
         if len(evidence.split()) <= 20: # Check that evidence text is greater than 20 words
             return False
-        if url_pattern.search(evidence): # Check that url is not in evidence text
+        if url_pattern.search(evidence): # Check that URL is not in evidence text
             return False
         if any(term in evidence for term in debate_terms): # Check that evidence text doesn't have any debate terms
             return False
 
-
+        # Validate side
         side = str(row['Side'])
         if side not in ['Aff', 'Neg']:
             return False
@@ -66,22 +66,31 @@ def is_row_valid(row):
 def remove_duplicates(df):
     return df.drop_duplicates(subset=['Tagline'], keep='first')
 
+# Rename topic column values
 def rename_topic_column(df):
     df['Topic'] = df['Topic'].replace('Wealth Tax', 'Nov/Dec 24')
     return df
 
 def main():
+    # Validate rows
     valid_rows = df[df.apply(is_row_valid, axis=1)]
     valid_rows = remove_duplicates(valid_rows)
     valid_rows = rename_topic_column(valid_rows)
+
+    # Check if the output CSV exists
+    file_exists = os.path.exists(output_csv)
+
+    # Write or append to the output CSV
     valid_rows.to_csv(
         output_csv,
+        mode='a' if file_exists else 'w',  # Append if file exists, write otherwise
+        header=not file_exists,           # Write headers only if creating a new file
         columns=['Tagline', 'Citation', 'Evidence', 'Side', 'Debate_Type', 'Topic'],
         index=False,
         encoding='utf-8'
     )
-    print(f"Validated and de-duplicated data written to '{output_csv}'.")
-    print(f"Final valid rows: {len(valid_rows)}")
+    print(f"Validated and appended data to '{output_csv}'.")
+    print(f"Final valid rows appended: {len(valid_rows)}")
 
 if __name__ == "__main__":
     main()
