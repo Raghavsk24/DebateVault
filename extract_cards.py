@@ -1,12 +1,9 @@
 import os
-from docx import Document
+import json
 import re
-import csv
+from docx import Document
 
-# Define URL Pattern
-url_pattern = re.compile(r'http[s]?://\S+')
 
-# Get list of paragraphs from docx file
 def get_paragraphs(docx_file):
     if not os.path.exists(docx_file):
         raise FileNotFoundError(f"The file {docx_file} does not exist.")
@@ -16,7 +13,6 @@ def get_paragraphs(docx_file):
     except Exception as e:
         raise RuntimeError(f"Error reading {docx_file}: {str(e)}")
 
-# Get styled paragraphs from docx file
 def get_styled_paragraphs(docx_file):
     if not os.path.exists(docx_file):
         raise FileNotFoundError(f"The file {docx_file} does not exist.")
@@ -39,15 +35,19 @@ def get_styled_paragraphs(docx_file):
         return styled_paragraphs
     except Exception as e:
         raise RuntimeError(f"Error reading {docx_file}: {str(e)}")
+    
 
-# Check if paragraphs is a valid card
+def contains_url(text):
+    url_pattern = re.compile(r'http[s]?://\S+')
+    return url_pattern.search(text) is not None
+
 def is_card_valid(paragraphs, index):
     if not (0 <= index - 1 < len(paragraphs) and 0 <= index + 1 < len(paragraphs)):
         return False
-    if not url_pattern.search(paragraphs[index]):
+    if not contains_url(paragraphs[index]):
         return False
     j = index + 2
-    while j < len(paragraphs) and not url_pattern.search(paragraphs[j]):
+    while j < len(paragraphs) and not contains_url(paragraphs[j]):
         j += 1
     if j - 1 <= index + 1:
         return False
@@ -58,41 +58,89 @@ def is_card_valid(paragraphs, index):
     }
 
 def extract_side(filepath):
-    """
-    Extracts the side (Aff or Neg) from the filename based on patterns like 'Pro' or 'Con'.
-    """
     filename = os.path.basename(filepath).lower()
-
-    # Check for 'pro' or 'con' in the filename
-    if 'con' in filename:
+    if 'con' in filename or 'neg' in filename:
         return 'Neg'
-    elif 'pro' in filename:
+    elif 'pro' in filename or 'aff' in filename:
         return 'Aff'
     else:
         print(f"Error: Side not found in filename '{filename}'")
-        return 'Error: Side not found'
+        return None
 
+def determine_topic(filename):
+    tournament_Nov_Dec= ['minneapple', 'peach', 'badgerland', 'ucla', 'swing', 'glenbrooks', 'blue', 'digital']
+    tournament_Sep_Oct = ['loyola', 'uk', 'grapevine', 'yale', 'georgetown', 'howe', 'nano', 'york', 'averill']
 
-# Extract cards from docx file
+    for tournament in tournament_Nov_Dec:
+        if tournament in filename:
+            return 'Nov/Dec 24'
+
+    for tournament in tournament_Sep_Oct:
+        if tournament in filename:
+            return 'Sep/Oct 24'
+
+    return None
+
 def cut_cards(paragraphs, styled_paragraphs, side, debate_type, topic):
     cards = []
+    unique_cards = set()
+
     for i in range(len(paragraphs)):
         card_data = is_card_valid(paragraphs, i)
         if card_data:
             tagline = card_data["tagline"]
             citation = card_data["citation"]
+
+            # Skip undefined topics, sides, or debate types
+            if not all([side, debate_type, topic]):
+                continue
+
+            # Check for duplicates using tagline and citation
+            card_identifier = (tagline, citation)
+            if card_identifier in unique_cards:
+                continue
+            unique_cards.add(card_identifier)
+
             styled_filtered_evidence = [
                 styled_paragraphs[paragraphs.index(para)]
                 for para in card_data["evidence"]
                 if para in paragraphs
             ]
-            cards.append([tagline, citation, " ".join(styled_filtered_evidence), side, debate_type, topic])
+
+            cards.append({
+                "tagline": tagline,
+                "citation": citation,
+                "evidence": styled_filtered_evidence,
+                "side": side,
+                "debate_type": debate_type.upper(),
+                "topic": topic
+            })
+
     return cards
 
-# Find docx files
+def process_batch(docx_files, category, debate_type):
+    all_cards = []
+    for docx_file in docx_files:
+        try:
+            print(f"Processing: {docx_file}")
+            paragraphs = get_paragraphs(docx_file)
+            if not paragraphs:
+                print(f"Skipping empty file: {docx_file}")
+                continue
+            styled_paragraphs = get_styled_paragraphs(docx_file)
+            side = extract_side(docx_file).capitalize()
+            topic = determine_topic(docx_file.lower()).strip()
+            cards = cut_cards(paragraphs, styled_paragraphs, side, debate_type, topic)
+            all_cards.extend(cards)
+            print(f"Valid cards in {docx_file}: {len(cards)}")
+        except Exception as e:
+            print(f"Error processing {docx_file}: {e}")
+    return all_cards
+
 def find_docx_files(root_folders):
     docx_files = []
-    tournaments = ['minneapple', 'peach', 'badgerland', 'ucla', 'swing', 'glenbrooks', 'blue']
+    tournaments = ['minneapple', 'peach', 'badgerland', 'ucla', 'swing', 'glenbrooks', 'blue', 'digital',
+                   'loyola', 'uk', 'grapevine', 'yale', 'georgetown', 'howe', 'nano', 'york', 'averill']
     for root_folder in root_folders:
         if not os.path.exists(root_folder):
             print(f"Error: Folder not found - {root_folder}")
@@ -104,51 +152,25 @@ def find_docx_files(root_folders):
     print(f"Found {len(docx_files)} .docx files across all folders.")
     return docx_files
 
-# Process batch of docx files
-def process_batch(docx_files, output_csv):
-    all_cards = []
-    for docx_file in docx_files:
-        try:
-            print(f"Processing: {docx_file}")
-            paragraphs = get_paragraphs(docx_file)
-            if not paragraphs:
-                print(f"Skipping empty file: {docx_file}")
-                continue
-            styled_paragraphs = get_styled_paragraphs(docx_file)
-            side = extract_side(docx_file)
-            cards = cut_cards(paragraphs, styled_paragraphs, side, 'PF', 'Nov/Dec 24')
-            all_cards.extend(cards)
-            print(f"Valid cards in {docx_file}: {len(cards)}")
-        except Exception as e:
-            print(f"Error processing {docx_file}: {e}")
-    try:
-        with open(output_csv, 'w', newline='', encoding='utf-8') as file:
-            writer = csv.writer(file)
-            writer.writerow(['Tagline', 'Citation', 'Evidence', 'Side', 'Debate_Type', 'Topic'])
-            writer.writerows(all_cards)
-    except Exception as e:
-        print(f"Error writing to {output_csv}: {e}")
+def main():
+    root_folders = {
+        "PF": [
+            r'C:\Users\senth\Debate GPT\WikiDownloads\hspolicy24-all-2024-12-17'
+        ]
+    }
 
-# Main function
-def main(root_folders, output_csv, batch_size=100):
-    print("Searching for .docx files...")
-    docx_files = find_docx_files(root_folders)
-    if not docx_files:
-        print("No .docx files found in the specified directories.")
-        return
-    for i in range(0, len(docx_files), batch_size):
-        batch = docx_files[i:i + batch_size]
-        print(f"\nProcessing batch {i // batch_size + 1}/{(len(docx_files) - 1) // batch_size + 1}...")
-        process_batch(batch, output_csv)
+    for category, folders in root_folders.items():
+        print(f"Processing category: {category}")
+        docx_files = find_docx_files(folders)
+        cards = process_batch(docx_files, category, debate_type=category)
+        print(f"Processed {len(cards)} cards for category {category}.")
+        output_file = r'C:\Users\senth\Debate GPT\cards\temp_cards.json'
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(cards, f, ensure_ascii=False, indent=4)
+        print(f"Cards saved to {output_file}")
+
+
     print("All files processed successfully.")
 
-# File paths
-root_folders = [
-    r'C:\Users\senth\Debate GPT\OpenCaseList Downloads1',
-    r'C:\Users\senth\Debate GPT\OpenCaseList Downloads2',
-    r'C:\Users\senth\Debate GPT\OpenCaseList Downloads3',
-    r'C:\Users\senth\Debate GPT\OpenCaseList Downloads4'
-]
-output_csv = r'C:\Users\senth\Debate GPT\Cards\Raw_Cards.csv'
-
-main(root_folders, output_csv)
+if __name__ == "__main__":
+    main()
