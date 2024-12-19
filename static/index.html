@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DebateVault</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Search Bar -->
+        <div class="search-bar">
+            <input
+                type="text"
+                id="searchInput"
+                placeholder="Search cards (e.g. economic growth facilitates innovation)"
+                oninput="debouncedFetchData()"
+            />
+        </div>
+
+        <!-- Search Results Count -->
+        <div id="resultsMessage" style="margin-top: -22px; margin-bottom: 30px; margin-left: 220px; font-size: 12px; color: #6d6c6c;"></div>
+
+        <!-- Filters Section -->
+        <div class="filter-section">
+            <label for="sideFilter">Side:</label>
+            <select id="sideFilter" onchange="applyFilters()">
+                <option value="">All Sides</option>
+                <option value="Aff">Aff</option>
+                <option value="Neg">Neg</option>
+            </select>
+        
+            <label for="debateTypeFilter">Debate Format:</label>
+            <select id="debateTypeFilter" onchange="updateTopics()">
+                <option value="">All Formats</option>
+                <option value="PF">PF</option>
+                <option value="LD">LD</option>
+                <option value="CX">CX</option>
+            </select>
+        
+            <label for="topicFilter">Topic:</label>
+            <select id="topicFilter" onchange="applyFilters()">
+                <!-- Dynamically updated topics -->
+            </select>
+        </div>
+        
+        
+        <!-- Card Container -->
+        <div id="cardContainer" class="card-container"></div>
+
+        <!-- Loading Indicator -->
+        <div id="loading" style="display: none;">Loading...</div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
