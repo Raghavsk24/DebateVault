@@ -1,111 +1,115 @@
 import os
-from docx import Document
+import json
 import re
-import csv
+from docx import Document
+from alive_progress import alive_bar
+import hashlib
+from bs4 import BeautifulSoup
+import pypandoc
 
-# Define URL Pattern
-url_pattern = re.compile(r'http[s]?://\S+')
 
-# Get list of paragraphs from docx file
-def get_paragraphs(docx_file):
-    if not os.path.exists(docx_file):
-        raise FileNotFoundError(f"The file {docx_file} does not exist.")
+def convert_to_html(filepath):
+    """Convert a .docx file to HTML using pypandoc."""
     try:
-        document = Document(docx_file)
-        return [p.text.strip() for p in document.paragraphs if p.text.strip()]
+        return pypandoc.convert_file(filepath, 'html')
     except Exception as e:
-        raise RuntimeError(f"Error reading {docx_file}: {str(e)}")
+        raise RuntimeError(f"Error converting {filepath} to HTML: {e}")
 
-# Get styled paragraphs from docx file
-def get_styled_paragraphs(docx_file):
-    if not os.path.exists(docx_file):
-        raise FileNotFoundError(f"The file {docx_file} does not exist.")
+
+def parse_html(html_content):
+    """Parse HTML content to extract potential cards."""
+    soup = BeautifulSoup(html_content, 'html.parser')
+    paragraphs = soup.find_all('p')
+    return [p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)]
+
+
+def extract_styled_text(html_content):
+    """Extract styled (bold, underlined, marked) text from HTML."""
+    soup = BeautifulSoup(html_content, 'html.parser')
+    styled_text = []
+    for tag in soup.find_all(['b', 'u', 'mark']):
+        styled_text.append(tag.get_text(strip=True))
+    return styled_text
+
+
+def contains_url(text):
+    """Check if a paragraph contains a URL."""
+    url_pattern = re.compile(r'https?://\S+')
+    return url_pattern.search(text) is not None
+
+
+def extract_cards(filepath, topic, side, debate_type):
+    """Extract debate cards from a .docx file."""
     try:
-        document = Document(docx_file)
-        styled_paragraphs = []
-        for paragraph in document.paragraphs:
-            if paragraph.text.strip():
-                styled_text = ""
-                for run in paragraph.runs:
-                    run_text = run.text
-                    if run.bold:
-                        run_text = f"<b>{run_text}</b>"
-                    if run.underline:
-                        run_text = f"<u>{run_text}</u>"
-                    if run.font.highlight_color:
-                        run_text = f"<mark>{run_text}</mark>"
-                    styled_text += run_text
-                styled_paragraphs.append(styled_text)
-        return styled_paragraphs
+        html_content = convert_to_html(filepath)
+        paragraphs = parse_html(html_content)
+        styled_texts = extract_styled_text(html_content)
+
+        cards = []
+        unique_cards = set()
+
+        with alive_bar(len(paragraphs), title=f"Processing {os.path.basename(filepath)}") as bar:
+            for i, paragraph in enumerate(paragraphs):
+                bar()
+                if contains_url(paragraph):
+                    tagline = paragraphs[i - 1] if i - 1 >= 0 else None
+                    evidence_start = i + 1
+                    evidence_end = evidence_start
+
+                    while evidence_end < len(paragraphs) and not contains_url(paragraphs[evidence_end]):
+                        evidence_end += 1
+
+                    evidence = paragraphs[evidence_start:evidence_end]
+
+                    # Validate card
+                    if tagline and evidence:
+                        card_identifier = hashlib.sha256((tagline + paragraph).encode('utf-8')).hexdigest()
+                        if card_identifier not in unique_cards:
+                            unique_cards.add(card_identifier)
+                            cards.append({
+                                "tagline": tagline,
+                                "citation": paragraph,
+                                "evidence": evidence,
+                                "side": side,
+                                "debate_type": debate_type,
+                                "topic": topic,
+                                "styled_text": styled_texts
+                            })
+
+        return cards
     except Exception as e:
-        raise RuntimeError(f"Error reading {docx_file}: {str(e)}")
+        print(f"Error processing file {filepath}: {e}")
+        return []
 
-# Check if paragraphs form a valid card
-def is_card_valid(paragraphs, index):
-    if not (0 <= index - 1 < len(paragraphs) and 0 <= index + 1 < len(paragraphs)):
-        return False
-    if not url_pattern.search(paragraphs[index]):
-        return False
-    j = index + 2
-    while j < len(paragraphs) and not url_pattern.search(paragraphs[j]):
-        j += 1
-    if j - 1 <= index + 1:
-        return False
-    return {
-        "tagline": paragraphs[index - 1], 
-        "citation": paragraphs[index], 
-        "evidence": paragraphs[index + 1:j - 1]
-    }
 
-# Extract cards from docx file
-def cut_cards(paragraphs, styled_paragraphs, side, debate_type, topic):
-    cards = []
-    for i in range(len(paragraphs)):
-        card_data = is_card_valid(paragraphs, i)
-        if card_data:
-            tagline = card_data["tagline"]
-            citation = card_data["citation"]
-            evidence_text = " ".join(card_data["evidence"])
-            styled_filtered_evidence = [
-                styled_paragraphs[paragraphs.index(para)]
-                for para in card_data["evidence"]
-                if para in paragraphs
-            ]
-            cards.append([tagline, citation, " ".join(styled_filtered_evidence), side, debate_type, topic])
-    return cards
+def save_cards(cards, output_file):
+    """Save extracted cards to a JSON file."""
+    with open(output_file, 'w', encoding='utf-8') as f:
+        json.dump(cards, f, ensure_ascii=False, indent=4)
 
-# Process a single docx file
-def process_file(docx_file, output_csv, debate_type='LD', topic='Nov/Dec 24'):
-    try:
-        print(f"Processing: {docx_file}")
-        paragraphs = get_paragraphs(docx_file)
-        if not paragraphs:
-            print(f"Skipping empty file: {docx_file}")
-            return
-        styled_paragraphs = get_styled_paragraphs(docx_file)
-        cards = cut_cards(paragraphs, styled_paragraphs, 'NEG', debate_type, topic)
-        print(f"Valid cards in {docx_file}: {len(cards)}")
-        with open(output_csv, 'a', newline='', encoding='utf-8') as file:
-            writer = csv.writer(file)
-            writer.writerows(cards)
-    except Exception as e:
-        print(f"Error processing {docx_file}: {e}")
 
-# Main function to process individual files
-def main(file_paths, output_csv):
-    print("Processing files...")
-    if not os.path.exists(output_csv):
-        with open(output_csv, 'a', newline='', encoding='utf-8') as file:
-            writer = csv.writer(file)
-            writer.writerow(['Tagline', 'Citation', 'Evidence', 'Side', 'Debate_Type', 'Topic'])
-    for docx_file in file_paths:
-        process_file(docx_file, output_csv)
-    print("All files processed successfully.")
+def main():
+    input_file = input("Enter the path to the .docx file: ").strip()
+    if not os.path.exists(input_file):
+        print(f"Error: File {input_file} does not exist.")
+        return
 
-# Example usage
-file_paths = [
-    r'your_input_path'  
-]
-output_csv = r'C:\Users\senth\Debate GPT\Cards\Raw_Cards.csv'
+    topic = input("Enter the topic (e.g., 'Nov/Dec 24'): ").strip()
+    side = input("Enter the side (e.g., 'Aff' or 'Neg'): ").strip().capitalize()
+    debate_type = input("Enter the debate type (e.g., 'LD', 'PF', 'Policy'): ").strip().upper()
 
-main(file_paths, output_csv)
+    if side not in ["Aff", "Neg"]:
+        print("Error: Invalid side. Please enter 'Aff' or 'Neg'.")
+        return
+
+    print(f"Processing file: {input_file}...")
+    cards = extract_cards(input_file, topic, side, debate_type)
+    print(f"Extracted {len(cards)} cards.")
+
+    output_file = os.path.join(os.path.dirname(input_file), 'extracted_cards.json')
+    save_cards(cards, output_file)
+    print(f"Cards saved to {output_file}")
+
+
+if __name__ == "__main__":
+    main()
