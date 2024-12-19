@@ -1,180 +1,225 @@
-let allCards = []; // Store all fetched cards
-let currentPage = 1; // Track the current page for pagination
-const limit = 500; // Number of cards to fetch per batch
-let debounceTimer;
-let isFetching = false; // Prevent multiple simultaneous fetches
-let filterSide = ''; // Current side filter
-let filterDebateType = ''; // Current Debate Type filter
+let page = 1;
+        let loading = false;
+        let noMoreData = false; // To indicate no more pages are available
 
-// Fetch cards from the backend
-async function fetchCards(query = '', page = 1) {
-    try {
-        isFetching = true; // Prevent overlapping fetch requests
-        const response = await fetch(`/api/cards?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`);
-        const data = await response.json();
+        const topics = {
+            "PF": ["Sep/Oct 24", "Nov/Dec 24", "Jan 24"],
+            "LD": ["Sep/Oct 24", "Nov/Dec 24", "Jan/Feb 24"],
+            "CX": ["2024"]
+        };
 
-        // Add fetched cards to the master list
-        allCards = [...allCards, ...data.cards];
-
-        // Apply filters and render cards
-        const filteredCards = filterCards(query, allCards);
-        renderCards(filteredCards);
-
-        // Log when all cards are loaded
-        if (data.cards.length < limit) {
-            console.log("All cards loaded.");
+        // Debounce function to optimize search input
+        function debounce(func, delay) {
+            let timer;
+            return function (...args) {
+                clearTimeout(timer);
+                timer = setTimeout(() => func.apply(this, args), delay);
+            };
         }
 
-        isFetching = false;
-    } catch (error) {
-        console.error('Error fetching cards:', error);
-        isFetching = false;
-    }
-}
+        async function fetchData() {
+            if (noMoreData) return; // If no more data available, do not fetch
 
-// Render cards to the DOM
-function renderCards(cardsToRender) {
-    const cardContainer = document.getElementById('cardContainer');
-    cardContainer.innerHTML = ''; // Clear existing cards
+            const search = document.getElementById('searchInput').value.trim();
+            const side = document.getElementById('sideFilter').value;
+            const topic = document.getElementById('topicFilter').value;
+            const debateType = document.getElementById('debateTypeFilter').value;
 
-    if (!cardsToRender || cardsToRender.length === 0) {
-        cardContainer.innerHTML = '<p>No cards found.</p>';
-        return;
-    }
+            // Build URL parameters
+            const params = new URLSearchParams({
+                ...(search && { search }),
+                ...(side && { side }),
+                ...(topic && { topic }),
+                ...(debateType && { debate_type: debateType }),
+                page,
+                size: 50
+            });
 
-    cardsToRender.forEach(card => {
-        const cardDiv = document.createElement('div');
-        cardDiv.className = 'card';
+            console.log("Query Parameters Sent to Backend:", params.toString());
 
-        cardDiv.innerHTML = `
-            <div class="copy-button-container">
-                <img 
-                    src="https://cdn-icons-png.flaticon.com/128/88/88026.png" 
-                    alt="Copy Icon" 
-                    class="copy-icon" 
-                    onclick="copyCardText(this)" 
-                    title="Copy Card"
-                />
-            </div>
-            <div class="tagline">${card.Tagline || 'No tagline'}</div>
-            <div class="citation">${card.Citation || 'No citation'}</div>
-            <div class="additional-info">
-                <button>${card.Side || 'N/A'}</button>
-                <button>${card.Debate_Type || 'N/A'}</button>
-                <button>${card.Topic || 'N/A'}</button>
-            </div>
-            <div class="evidence">${card.Evidence || 'No evidence'}</div>
-        `;
-        cardContainer.appendChild(cardDiv);
-    });
-}
+            try {
+                loading = true;
+                document.getElementById('loading').style.display = 'block';
 
-// Copy the text of a card
-function copyCardText(copyButton) {
-    try {
-        const cardDiv = copyButton.closest('.card');
-        if (!cardDiv) {
-            console.error("Card element not found.");
-            return;
+                const response = await fetch(`/data?${params}`);
+                if (!response.ok) {
+                    console.error("Backend Error:", await response.text());
+                    alert("Failed to fetch data from backend.");
+                    loading = false;
+                    document.getElementById('loading').style.display = 'none';
+                    return;
+                }
+
+                const data = await response.json();
+                console.log("Response from Backend:", data);
+
+                // Update the search results count dynamically
+                const resultsMessage = document.getElementById("resultsMessage");
+                if (data.total === 0 && page === 1) {
+                    resultsMessage.textContent = "No results found.";
+                } else if (data.total >= 10000) {
+                    resultsMessage.textContent = "Showing 10,000+ results.";
+                } else {
+                    resultsMessage.textContent = `Found ${data.total} result${data.total > 1 ? 's' : ''}`;
+                }
+
+                renderCards(data.cards);
+
+                // If fewer cards returned than requested, it means we've hit the end
+                if (data.cards.length < 50) {
+                    noMoreData = true;
+                }
+
+                loading = false;
+                document.getElementById('loading').style.display = 'none';
+
+            } catch (err) {
+                console.error("Fetch Error:", err);
+                alert("Error loading data.");
+                loading = false;
+                document.getElementById('loading').style.display = 'none';
+            }
         }
 
-        const clonedCard = cardDiv.cloneNode(true);
+        // Render cards dynamically
+        function renderCards(cards) {
+            const container = document.getElementById('cardContainer');
+            // If it's the first page and no cards are found, show message
+            if (page === 1 && (!cards || cards.length === 0)) {
+                container.innerHTML = '<p>No cards found.</p>';
+                return;
+            }
 
-        // Remove unnecessary elements
-        const buttons = clonedCard.querySelectorAll('.additional-info button, .copy-button-container');
-        buttons.forEach(button => button.remove());
+            // If first page and we have results, clear existing content first
+            if (page === 1 && cards.length > 0) {
+                container.innerHTML = '';
+            }
 
-        const tempContainer = document.createElement('div');
-        tempContainer.appendChild(clonedCard);
-        tempContainer.style.position = 'absolute';
-        tempContainer.style.left = '-9999px'; // Off-screen
-        document.body.appendChild(tempContainer);
+            // If subsequent pages return no cards, do nothing (no clearing)
+            if (!cards || cards.length === 0) {
+                return;
+            }
 
-        const range = document.createRange();
-        range.selectNodeContents(tempContainer);
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
+            cards.forEach(card => {
+                const cardDiv = document.createElement('div');
+                cardDiv.className = 'card';
 
-        const successful = document.execCommand('copy');
-        if (successful) {
-            console.log("Card text copied!");
-        } else {
-            console.error("Copy command failed.");
+                cardDiv.innerHTML = `
+                    <div class="copy-button-container">
+                        <img 
+                            src="https://cdn-icons-png.flaticon.com/128/88/88026.png" 
+                            alt="Copy Icon" 
+                            class="copy-icon" 
+                            onclick="copyCardText(this)" 
+                            title="Copy Card"
+                        />
+                    </div>
+                    <div class="tagline">${card.tagline || 'No tagline'}</div>
+                    <div class="citation">${card.citation || 'No citation'}</div>
+                    <div class="additional-info">
+                        <button>${card.side || 'N/A'}</button>
+                        <button>${card.debate_type || 'N/A'}</button>
+                        <button>${card.topic || 'N/A'}</button>
+                    </div>
+                    <div class="evidence">${card.evidence?.join('<br>') || 'No evidence'}</div>
+                `;
+                container.appendChild(cardDiv);
+            });
         }
 
-        document.body.removeChild(tempContainer);
-        selection.removeAllRanges();
-    } catch (error) {
-        console.error("Error copying card:", error);
-    }
-}
+        // Copy the text of a card
+        function copyCardText(copyButton) {
+            try {
+                const cardDiv = copyButton.closest('.card');
+                if (!cardDiv) {
+                    console.error("Card element not found.");
+                    return;
+                }
 
-// Apply filters and search
-function filterCards(query, allCards) {
-    const queryWords = query.toLowerCase().split(/\s+/);
+                const clonedCard = cardDiv.cloneNode(true);
 
-    // Filter by side
-    let filteredCards = filterSide
-        ? allCards.filter(card => card.Side && card.Side.toLowerCase() === filterSide.toLowerCase())
-        : allCards;
+                // Remove unnecessary elements
+                const buttons = clonedCard.querySelectorAll('.additional-info button, .copy-button-container');
+                buttons.forEach(button => button.remove());
 
-    // Filter by debate type
-    if (filterDebateType) {
-        filteredCards = filteredCards.filter(card =>
-            card.Debate_Type && card.Debate_Type.toLowerCase() === filterDebateType.toLowerCase()
-        );
-    }
+                const tempContainer = document.createElement('div');
+                tempContainer.appendChild(clonedCard);
+                tempContainer.style.position = 'absolute';
+                tempContainer.style.left = '-9999px'; // Off-screen
+                document.body.appendChild(tempContainer);
 
-    // Apply search query
-    if (query) {
-        filteredCards = filteredCards.filter(card => {
-            const combinedText = `${card.Tagline || ''} ${card.Citation || ''} ${card.Evidence || ''}`.toLowerCase();
-            return queryWords.some(word => combinedText.includes(word));
-        });
-    }
+                const range = document.createRange();
+                range.selectNodeContents(tempContainer);
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
 
-    return filteredCards;
-}
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    console.log("Card text copied!");
+                } else {
+                    console.error("Copy command failed.");
+                }
 
-// Handle side filtering
-function filterBySide(side) {
-    filterSide = side; // Update the global filter
-    const query = document.getElementById('searchInput').value;
-    const filteredCards = filterCards(query, allCards);
-    renderCards(filteredCards);
-}
+                document.body.removeChild(tempContainer);
+                selection.removeAllRanges();
+            } catch (error) {
+                console.error("Error copying card:", error);
+            }
+        }
 
-// Handle debate type filtering
-function filterByDebateType(debateType) {
-    filterDebateType = debateType; // Update the global filter
-    const query = document.getElementById('searchInput').value;
-    const filteredCards = filterCards(query, allCards);
-    renderCards(filteredCards);
-}
+        // Apply filters
+        function applyFilters() {
+            page = 1;
+            noMoreData = false;
+            fetchData();
+        }
 
-// Debounced search input
-function onSearchInputDebounced() {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-        const query = document.getElementById('searchInput').value;
-        const filteredCards = filterCards(query, allCards);
-        renderCards(filteredCards);
-    }, 300); // 300ms debounce delay
-}
+        function updateTopics() {
+            const debateType = document.getElementById("debateTypeFilter").value;
+            const topicLabel = document.querySelector('label[for="topicFilter"]');
+            const topicSelect = document.getElementById("topicFilter");
 
-// Handle infinite scrolling
-function onScroll() {
-    const scrollableElement = document.documentElement;
+            // If no debate type selected, hide the topics
+            if (!debateType) {
+                topicLabel.style.display = "none";
+                topicSelect.style.display = "none";
+                topicSelect.innerHTML = "";
+            } else {
+                topicLabel.style.display = "inline-block";
+                topicSelect.style.display = "inline-block";
+                topicSelect.innerHTML = "<option value=''>All Topics</option>";
+                if (topics[debateType]) {
+                    topics[debateType].forEach(topic => {
+                        const option = document.createElement("option");
+                        option.value = topic;
+                        option.textContent = topic;
+                        topicSelect.appendChild(option);
+                    });
+                }
+            }
+            page = 1;
+            noMoreData = false;
+            fetchData();
+        }
 
-    if (scrollableElement.scrollTop + scrollableElement.clientHeight >= scrollableElement.scrollHeight - 10 && !isFetching) {
-        currentPage += 1;
-        fetchCards(document.getElementById('searchInput').value, currentPage);
-    }
-}
+        function handleScroll() {
+            if (noMoreData || loading) return;
+            if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 10) {
+                page++;
+                fetchData();
+            }
+        }
 
-// Attach event listeners
-window.addEventListener('scroll', onScroll);
+        // Debounced fetchData for search input
+        const debouncedFetchData = debounce(() => {
+            page = 1;
+            noMoreData = false;
+            fetchData();
+        }, 300);
 
-// Initialize the page
-fetchCards();
+        // Initial data load
+        fetchData();
+
+        // Add the infinite scroll listener
+        window.addEventListener('scroll', handleScroll);
