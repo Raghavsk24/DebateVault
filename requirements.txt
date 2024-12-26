@@ -1,5 +1,5 @@
 
-Flask==2.2.2
+fastapi==0.112.0
 Elasticsearch==8.16.1
 docx==0.2.4
 numpy==1.24.3
