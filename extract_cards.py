@@ -6,10 +6,25 @@ import tempfile
 from docx import Document
 
 # Define Global Dictioanry of Tournaments
-TOURNAMENTS= {
-        "Sep/Oct 24":  ['Loyola-', 'Opener-', 'Grapevine-', 'Yale-',  'Georgetown-', 'Jack-Howe', 'Nano-', 'New-York-', 'Averill-', 'Mid-America-', 'Meadows-', 'Niles-', 'Trevian-', 'Westminster-', 'Greenhill-', 'Marist-', 'Nova-'], 
-        "Nov/Dec 24": ['Minneapple-', 'longhorn-', 'Peach-', 'Michigan-', 'Badgerland-', 'ucla', 'Swing-', 'Glenbrooks-', 'Blue-', 'series-1', 'holiday-', 'costa-', 'Chung-', 'Bison-', 'Katy-Taylor', 'Princeton-', 'Paradigm-', 'Isidore-' ]
-    }
+# Define Global Dictionary of Tournaments (all lowercase, no trailing hyphens)
+TOURNAMENTS = {
+    "Sep/Oct 24": [
+        'loyola-', 'opener-', 'grapevine-', 'yale-', 'georgetown-day',
+        'jack-howe', 'nano-nagle', 'new-york', 'tim-averill', 'mid-america-',
+        'meadows-', 'niles-', 'trevian-', 'westminster-', 'greenhill-',
+        'marist-', 'nova-'
+    ],
+    "Nov/Dec 24": [
+        'minneapple-', 'longhorn-', 'peach-', 'michigan-', 'badgerland-',
+        'ucla-', 'swing-', 'glenbrooks-', 'blue', 'series-1-',
+        'holiday-classic-', 'costa-', 'chung-', 'bison-', 'katy-taylor-',
+        'princeton-', 'paradigm-', 'isidore-'
+    ],
+    "Jan/Feb 24": [
+        'john-', 'strake-'
+    ]
+}
+
 
 # Extracts ZIP file to specific directory
 def unzip_file(zip_path, extract_to):
@@ -114,22 +129,30 @@ def extract_side(filepath):
 
 # Determine topic based on tournament name
 def determine_topic(filename):
-    # Sep/Oct Topic
+    filename = filename.lower()
+    
     for tournament in TOURNAMENTS["Sep/Oct 24"]:
-        if tournament in filename.lower():
+        if tournament in filename:
+            print(f"Matched {tournament} in {filename} -> Sep/Oct 24")
             return 'Sep/Oct 24'
-   
-    # Nov/Dec Topic
+
     for tournament in TOURNAMENTS["Nov/Dec 24"]:
-        if tournament in filename.lower():
+        if tournament in filename:
+            print(f"Matched {tournament} in {filename} -> Nov/Dec 24")
             return 'Nov/Dec 24'
 
+    for tournament in TOURNAMENTS["Jan/Feb 24"]:
+        if tournament in filename:
+            print(f"Matched {tournament} in {filename} -> Jan/Feb 24")
+            return 'Jan/Feb 24'
+
+    print(f"No topic match for {filename}")
     return None
+
 
 # Cut cards
 def cut_cards(paragraphs, styled_paragraphs, side, event, topic):
     cards = [] # Initalize card lsit
-    unique_cards = set()
     evidence_set = 2024
 
     for i in range(len(paragraphs)):
@@ -229,8 +252,21 @@ def main():
 
     # Path to folder(s)
     root_folders = {
-        "CX": [
-            r'C:\Users\senth\DebateVault\hspolicy24-all-2024-12-24.zip'
+        "LD": [
+            r'C:\Users\senth\DebateVault\hsld24-weekly-2024-12-24.zip',
+            r'C:\Users\senth\DebateVault\hsld24-weekly-2024-12-17.zip',
+            r'C:\Users\senth\DebateVault\hsld24-weekly-2024-11-26.zip',
+            r'C:\Users\senth\DebateVault\hsld24-weekly-2024-11-19.zip',
+            r'C:\Users\senth\DebateVault\hsld24-weekly-2024-11-12.zip',
+            r'C:\Users\senth\DebateVault\hsld24-weekly-2024-11-05.zip',
+            r'C:\Users\senth\DebateVault\hsld24-weekly-2024-10-29.zip',
+            r'C:\Users\senth\DebateVault\hsld24-weekly-2024-10-22.zip',
+            r'C:\Users\senth\DebateVault\hsld24-weekly-2024-10-15.zip',
+            r'C:\Users\senth\DebateVault\hsld24-weekly-2024-10-08.zip',
+            r'C:\Users\senth\DebateVault\hsld24-weekly-2024-10-01.zip',
+            r'C:\Users\senth\DebateVault\hsld24-weekly-2024-09-24.zip',
+            r'C:\Users\senth\DebateVault\hsld24-weekly-2024-09-10.zip',
+            r'C:\Users\senth\DebateVault\hsld24-weekly-2024-09-03.zip'
         ]
     }
 
@@ -250,12 +286,12 @@ def main():
                     # If not a ZIP file, assume it's a directory
                     temp_dir = folder 
 
-            # Search for .docx files within extraqcted files
+            # Search for .docx files within extracted files
             docx_files = find_docx_files([temp_dir])
             cards = process_batch(docx_files, category, event=category)
             print(f"Processed {len(cards)} cards for category {category}.")  # Print number of cards found
             
-            output_file = 'raw_policy_cards.json' # OUTPUT FILE PATH
+            output_file = 'raw_LD_cards.json' # OUTPUT FILE PATH
             with open(output_file, "w", encoding="utf-8") as f:
                 json.dump(cards, f, ensure_ascii=False, indent=4)
             print(f"Cards saved to {output_file}")  # Confirm  if card has been added onto output_file
