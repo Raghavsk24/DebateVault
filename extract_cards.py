@@ -21,7 +21,7 @@ TOURNAMENTS = {
         'holiday-classic-', 'costa-', 'chung-', 'bison-', 'katy-taylor-',
         'princeton-', 'paradigm-', 'isidore-'
     ],
-    "Jan/Feb 24": [
+    "Jan 25": [
         'john-', 'strake-'
     ]
 }
