@@ -30,9 +30,9 @@
                 <option value="Neg">Neg</option>
             </select>
         
-            <label for="debateTypeFilter">Debate Format:</label>
-            <select id="debateTypeFilter" onchange="updateTopics()">
-                <option value="">All Formats</option>
+            <label for="eventFilter">Debate Event:</label>
+            <select id="eventFilter" onchange="applyFilters()">
+                <option value="">All Events</option>
                 <option value="PF">PF</option>
                 <option value="LD">LD</option>
                 <option value="CX">CX</option>
@@ -40,7 +40,12 @@
         
             <label for="topicFilter">Topic:</label>
             <select id="topicFilter" onchange="applyFilters()">
-                <!-- Dynamically updated topics -->
+                <option value="">All Topics</option>
+                <option value="Sep/Oct 24">Sep/Oct 24</option>
+                <option value="Nov/Dec 24">Nov/Dec 24</option>
+                <option value="Jan/Feb 25">Jan/Feb 25</option>
+                <option value="Jan 25">Jan 25</option>
+                <option value="2024">2024</option>
             </select>
         </div>
         
