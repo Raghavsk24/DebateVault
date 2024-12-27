@@ -5,36 +5,27 @@ from elasticsearch import Elasticsearch
 from fastapi.staticfiles import StaticFiles
 import json
 
+# Define stop words
 STOP_WORDS = {
-    "a", "about", "above", "across", "after", "afterwards", "again", "against", "all", "almost", "alone", "along", 
-    "already", "also", "although", "always", "am", "among", "amongst", "amoungst", "amount", "an", "and", "another", 
-    "any", "anyhow", "anyone", "anything", "anyway", "anywhere", "are", "around", "as", "at", "back", "be", "became", 
-    "because", "become", "becomes", "becoming", "been", "before", "beforehand", "behind", "being", "below", "beside", 
-    "besides", "between", "beyond", "bill", "both", "bottom", "but", "by", "call", "can", "cannot", "cant", "co", 
-    "computer", "con", "could", "couldn't", "cry", "de", "describe", "detail", "did", "do", "done", "down", "due", 
-    "during", "each", "eg", "eight", "either", "eleven", "else", "elsewhere", "empty", "enough", "etc", "even", "ever", 
-    "every", "everyone", "everything", "everywhere", "except", "few", "fifteen", "fify", "fill", "find", "fire", 
-    "first", "five", "for", "former", "formerly", "forty", "found", "four", "from", "front", "full", "further", "get", 
-    "give", "go", "had", "has", "hasnt", "have", "he", "hence", "her", "here", "hereafter", "hereby", "herein", 
-    "hereupon", "hers", "herself", "him", "himself", "his", "how", "however", "hundred", "i", "ie", "if", "in", "inc", 
-    "indeed", "into", "is", "it", "its", "it's", "itself", "keep", "last", "latter", "latterly", "least", "less", "ltd", 
-    "made", "many", "may", "me", "meanwhile", "might", "mill", "mine", "more", "moreover", "most", "mostly", "move", 
-    "much", "must", "my", "myself", "name", "namely", "neither", "never", "nevertheless", "next", "nine", "no", 
-    "nobody", "none", "noone", "nor", "not", "nothing", "now", "nowhere", "of", "off", "often", "on", "once", "one", 
-    "only", "onto", "or", "other", "others", "otherwise", "our", "ours", "ourselves"
+    "about", "above", "across", "after", "against", "along", "amid", "among",
+    "around", "as", "at", "before", "behind", "below", "beneath", "beside",
+    "between", "beyond", "but", "by", "concerning", "despite", "down", "during",
+    "except", "for", "from", "in", "inside", "into", "like", "near", "of",
+    "off", "on", "onto", "out", "outside", "over", "past", "since", "through",
+    "throughout", "till", "to", "toward", "under", "underneath", "until",
+    "up", "upon", "with", "within", "without"
 }
-
 
 app = FastAPI()
 
-# Elasticsearch connection
+# Elasticsearch Cloud connection
 es = Elasticsearch(
-    hosts=["https://localhost:9200"],
-    ca_certs=r"C:/Users/senth/Downloads/elasticsearch-8.17.0-windows-x86_64/elasticsearch-8.17.0/config/certs/http_ca.crt",
-    basic_auth=("elastic", "eSI4Mouej*keLZeEngvm")
+    hosts=["https://852bdb4c2a854ef9923a92a913f7ef1a.us-west-1.aws.found.io:443"],
+    basic_auth=("elastic", "V6gvgwaVLMA5zf4K8Ef8drZA")  # Replace with your credentials
 )
 
-app.mount("/static", StaticFiles(directory=r"C:\Users\senth\Debate GPT\static"), name="static")
+# Mount static files
+app.mount("/static", StaticFiles(directory=r"C:\Users\senth\DebateVault\static"), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 def root():
@@ -54,7 +45,7 @@ def remove_stop_words(query: str) -> str:
 def get_data(
     side: Optional[str] = None,
     topic: Optional[str] = None,
-    debate_type: Optional[str] = None,
+    event: Optional[str] = None,
     search: Optional[str] = None,
     size: int = 50,
     page: int = 1
@@ -76,9 +67,8 @@ def get_data(
                     "query": exact_query,
                     "fields": [
                         "tagline^50",
-                        "evidence.hbu^10",
-                        "evidence.bu^1",
-                        "citation^0.1"
+                        "evidence^10",
+                        "citation^1"
                     ],
                     "type": "phrase",
                     "boost": 100
@@ -91,9 +81,8 @@ def get_data(
                     "query": fuzzy_query,
                     "fields": [
                         "tagline^50",
-                        "evidence.hbu^10",
-                        "evidence.bu^1",
-                        "citation^0.1"
+                        "evidence^10",
+                        "citation^1"
                     ],
                     "fuzziness": "AUTO"
                 }
@@ -101,31 +90,27 @@ def get_data(
 
             apply_min_score = True
 
-        # Apply filters
+        # Apply filters using term queries for exact matches on keyword fields
         if side:
             query["bool"]["must"].append({
-                "multi_match": {
-                    "query": side,
-                    "fields": ["side"],
-                    "operator": "and"
+                "term": {
+                    "side": side
                 }
             })
 
         if topic:
             query["bool"]["must"].append({
-                "multi_match": {
-                    "query": topic,
-                    "fields": ["topic"],
-                    "operator": "and"
+                "term": {
+                    "topic": topic
+                    
                 }
             })
 
-        if debate_type:
+
+        if event:
             query["bool"]["must"].append({
-                "multi_match": {
-                    "query": debate_type,
-                    "fields": ["debate_type"],
-                    "operator": "and"
+                "term": {
+                    "event": event
                 }
             })
 
