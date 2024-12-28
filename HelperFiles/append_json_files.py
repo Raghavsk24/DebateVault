@@ -2,7 +2,10 @@ import json
 import os
 import sys
 
+# Load json file
 def load_json(file_path):
+
+    # Check if json file exists
     if not os.path.exists(file_path):
         print(f"Error: File '{file_path}' does not exist.")
         sys.exit(1)
@@ -10,13 +13,14 @@ def load_json(file_path):
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
             if not isinstance(data, list):
-                print(f"Error: JSON data in '{file_path}' is not a list.")
+                print(f"Error: JSON data in '{file_path}' is not a list.") # Check if json has array structure
                 sys.exit(1)
             return data
     except json.JSONDecodeError as e:
         print(f"Error decoding JSON from '{file_path}': {e}")
         sys.exit(1)
 
+# Save json data to output file path
 def save_json(data, file_path):
     try:
         with open(file_path, 'w', encoding='utf-8') as f:
@@ -26,6 +30,7 @@ def save_json(data, file_path):
         print(f"Error saving JSON to '{file_path}': {e}")
         sys.exit(1)
 
+# Combine multiple input json file sinto one output file
 def combine_json_files(input_files, output_file):
     combined_data = []
     for file in input_files:
