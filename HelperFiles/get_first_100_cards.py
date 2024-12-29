@@ -1,63 +1,56 @@
-import json
-import orjson
+import ijson
 from tqdm import tqdm
+import json
+import decimal
 
 # Define input and output file paths
-input_file = r'C:\Users\senth\DebateVault\dataset_cards.jsonl'  
-output_file = r'C:\Users\senth\DebateVault\Dataset_Cards\first_100_dataset_cards.jsonl'  
+input_file = r'C:\Users\senth\DebateVault\Dataset_Cards\valid_dataset_cards.json'  
+output_file = r'C:\Users\senth\DebateVault\Dataset_Cards\first_100_dataset_cards.json'  
 
-# Define the number of cards to extract
-NUM_CARDS = 100
-
-# Get first 100 objects form jsonl file
-def extract_first_n_cards(jsonl_path, n):
-    extracted_cards = []
+# Extract the first 100 objects from a large JSON file using streaming
+def extract_first_n_objects(json_path, n):
+    extracted_objects = []
     try:
-        with open(jsonl_path, 'r', encoding='utf-8') as f_in:
-            for _ in tqdm(range(n), desc="Extracting Cards"):
-                line = f_in.readline()
-                if not line:
-                    break  # End of file reached before extracting n cards
-                try:
-                    card = orjson.loads(line) # Load JSON object
-                    extracted_cards.append(card) # Append the card onto extracted_cards list
-                except orjson.JSONDecodeError as e:
-                    print(f"Warning: Skipping invalid JSON line. Error: {e}")
+        with open(json_path, 'r', encoding='utf-8') as f_in:
+            parser = ijson.items(f_in, 'item')  # Stream items from the top-level JSON array
+            for i, item in tqdm(enumerate(parser), desc="Extracting Objects"):
+                if i >= n:
+                    break
+                extracted_objects.append(item)
     except FileNotFoundError:
-        print(f"Error: The file '{jsonl_path}' was not found.")
+        print(f"Error: The file '{json_path}' was not found.")
     except Exception as e:
-        print(f"An unexpected error occurred while extracting cards: {e}")
-    
-    return extracted_cards
+        print(f"An unexpected error occurred while extracting objects: {e}")
+    return extracted_objects
 
-# Write list of first 100 JSON objects to jsonl file
-def write_jsonl(cards, output_path):
+# Write a list of JSON objects to a file
+def write_json(obj_list, output_path):
+    def custom_encoder(obj):
+        if isinstance(obj, decimal.Decimal):
+            return float(obj)  # Convert Decimal to float
+        raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+    
     try:
         with open(output_path, 'w', encoding='utf-8') as f_out:
-            for card in cards:
-                try:
-                    f_out.write(orjson.dumps(card).decode('utf-8') + '\n')
-                except Exception as e:
-                    print(f"Warning: Skipping card due to serialization error. Error: {e}")
-        print(f"Successfully wrote {len(cards)} cards to '{output_path}'.")
+            json.dump(obj_list, f_out, indent=4, ensure_ascii=False, default=custom_encoder)  # Use custom encoder
+        print(f"Successfully wrote {len(obj_list)} objects to '{output_path}'.")
     except Exception as e:
         print(f"An unexpected error occurred while writing to the output file: {e}")
 
-
 def main():
-    # Extract the first 100 cards from the JSONL input file
-    print(f"Starting extraction of the first {NUM_CARDS} cards from '{input_file}'...")
-    first_n_cards = extract_first_n_cards(input_file, NUM_CARDS)
+    # Extract the first 100 objects from the JSON input file
+    print(f"Starting extraction of the first 100 objects from '{input_file}'...")
+    first_100_objects = extract_first_n_objects(input_file, 100)
     
-    if not first_n_cards:
-        print("No cards were extracted. Please check the input file.")
+    if not first_100_objects:
+        print("No objects were extracted. Please check the input file.")
         return
     
-    # Write the extracted cards to the output JSONL file
-    print(f"Writing the extracted cards to '{output_file}'...")
-    write_jsonl(first_n_cards, output_file)
+    # Write the extracted objects to the output JSON file
+    print(f"Writing the extracted objects to '{output_file}'...")
+    write_json(first_100_objects, output_file)
     
-    print(f"\nProcessing complete. Extracted {len(first_n_cards)} cards to '{output_file}'.")
+    print(f"\nProcessing complete. Extracted {len(first_100_objects)} objects to '{output_file}'.")
 
 if __name__ == "__main__":
     main()
