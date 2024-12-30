@@ -1,5 +1,6 @@
 import json
 import ijson
+from tqdm import tqdm
 
 # Input and output JSON files
 input_file = r'C:\Users\senth\DebateVault\Dataset_Cards\dataset_cards.json'  
@@ -8,9 +9,13 @@ output_file = r'C:\Users\senth\DebateVault\Dataset_Cards\dataset_cards1.json'
 # Read the JSON file using ijson for efficient streaming
 try:
     updated_data = []
+    
+    # Count the total number of items for progress bar
+    with open(input_file, 'r', encoding='utf-8') as file:
+        total_items = sum(1 for _ in ijson.items(file, 'item'))
 
     with open(input_file, 'r', encoding='utf-8') as file:
-        for item in ijson.items(file, 'item'):
+        for item in tqdm(ijson.items(file, 'item'), total=total_items, desc="Processing items"):
             if 'event' in item and 'evidence_set' in item and item['event'] == 'CX':
                 item['topic'] = str(item['evidence_set'])  # Set topic field equal to evidence_set value
             updated_data.append(item)
