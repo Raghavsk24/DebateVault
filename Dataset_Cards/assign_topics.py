@@ -1,272 +1,80 @@
 import json
+import ijson
+import os
 
-# Input and output JSON files
-input_file = r'C:\Users\senth\DebateVault\Dataset_Cards\dataset_cards1.json'
-output_file = r'C:\Users\senth\DebateVault\Dataset_Cards\dataset_cards_topics1.json'
+# Define file paths
+file_path = r'C:\Users\senth\DebateVault\Dataset_Cards\transformed_dataset_cards_TEMP2.json'
+out_path = r'C:\Users\senth\DebateVault\Dataset_Cards\transformed_dataset_cards_TEMP3.json'
 
 # List of tournament names to match
-tournament_names = events = [
-    "03-Greenhill Fall Classic",
-    "01 - Grapevine Classic",
-    "02 - Georgetown Day School",
-    "Kansas City",
-    "New York City Invitational Debate And Speech Tournament",
-    "East Kansas nsda quals",
-    "The New York City Invitational",
-    "New York City Speech and Debate Invitational",
-    "Nano Nagle RR",
-    "Marist Ivy Street",
-    "Kansas City Invitational",
-    "Lindale TFA",
-    "3 - New York City Invitational",
-    "1 - Washburn Rural",
-    "Jack Howe Memorial",
-    "1---Washburn Rural",
-    "nano nagle",
-    "3 - Trevian Invitational",
-    "Nano Nagles Invitational",
-    "2---Trevian Invitational",
-    "New York City Debate and Speech Tournament",
-    "2--Georgetown Day School",
-    "B- New York City Invitational Debate and Speech Tournament",
-    "Trevian invitational",
-    "02 - New York City Invitational Debate and Speech Tournament",
-    "East Kansas Regionals 6A",
-    "5- West Kansas District Tournament",
-    "Grapevine, Holy Cross, DTA, New York Invitational, Glenbrooks",
-    "Niles Township",
-    "new york city invitational",
-    "Jacke Howe Memorial tournament at CSU Long Beach",
-    "2 - East Kansas NSDA",
-    "Yale Invitational",
-    "1 - Grapevine Classic",
-    "02-Grapevine Classic",
-    "5-West Kansas District Tournament",
-    "Nano Nagle  Voices",
-    "Grapevine Classic",
-    "Marist Scrimmage Series 1",
-    "1 -- Greenhill RR",
-    "Niles Season Opener",
-    "01 - Washburn Rural",
-    "Marist 1AC",
-    "YALE UNIVERSITY INVITATIONAL",
-    "02---Greenhill Fall Classic",
-    "Jach howe invitational",
-    "1 - Washburn Rural Invitational",
-    "Niles West Invitational",
-    "Greenhill Fall Classic 2018",
-    "Jack Howe Aff",
-    "Greenhill Fall Classic RR",
-    "Uk opener 2021",
-    "01--Greenhill Fall Classic",
-    "Nova Titan Invitational",
-    "A- YALE UNIVERSITY INVITATIONAL",
-    "Nano Nagle Voices Round Robin",
-    "Greenhill Classic",
-    "SO - New York City Invitational",
-    "Jack Howe Memorial Invitational",
-    "greenhill round robin",
-    "06 - Tim Averill Invitational ONLINE",
-    "WTO - Loyola Invitational",
-    "Greenhill Fall Classic",
-    "01- Marist Ivy Street Invitational",
-    "Loyola Invitational",
-    "01 - Niles Township Invitational",
-    "grapevine classic",
-    "Jack Howe Tournament Long Beach",
-    "LOYOLA INVITATIONAL",
-    "Yale Tournament",
-    "2 - Georgetown Day School",
-    "06 - East Kansas NSDA Qualifier",
-    "Jack Howe Long Beach",
-    "1 - Washburn Rural Debate Invitational",
-    "Loyola Invitational 2022",
-    "Nano Nagle Classic",
-    "Nova Titan",
-    "02 - Grapevine Classic",
-    "04---New York City Invitational Debate and Speech Tournament",
-    "1 - Georgetown Day School",
-    "01---Georgetown Day School",
-    "04 - New York City Invitational Debate and Speech Tournament",
-    "UK Season Opener Round 1",
-    "Nano RR",
-    "Nano Nagle Classic RR",
-    "03 - YALE UNIVERSITY INVITATIONAL",
-    "01- Jack Howe Memorial Invitational 2022",
-    "niles township",
-    "Greenhill RR Round 5",
-    "01 -- Greenhill Fall Classic",
-    "Kansas Debate Classic",
-    "2 -- Washburn Rural Debate Invitational",
-    "Washburn Rurual",
-    "3 - Yale University Invitational",
-    "Grapevine classic",
-    "03 -- New York City Invitational Debate and Speech Tournament",
-    "02 -- Greenhill Fall Classic",
-    "nano nagle classic",
-    "Loyola 2020",
-    "NATIONAL SPEECH AND DEBATE SEASON OPENER HOSTED BY UK",
-    "Georgetown Spring Tournament",
-    "03 - Trevian Invitational",
-    "B - YALE UNIVERSITY INVITATIONAL",
-    "JVCX at Novice JV Opener Glenbrook South",
-    "NSDA Opener UK",
-    "01 - Washburn Rural Debate Invitational",
-    "Washburn Rural Debate Invitational 2021",
-    "Washburn Rural DCI",
-    "New York City Invatational Debate and Speech Tournament",
-    "Kansas State Tournament 5a 2 Speaker",
-    "New York City Invitational Bronx",
-    "2 - Grapevine Classic",
-    "Loyola International",
-    "Novice and JV Opener at Glenbrook south",
-    "greenhill rr",
-    "Yale University Invitational 2021",
-    "Nano Nagle Classic Round Robin",
-    "Kansas Catholic Classic",
-    "Nano Nagle Presentation",
-    "New York Invitational",
-    "NEW YORK CITY INVITATIONAL DEBATE AND SPEECH TOURNAMENT",
-    "Novice and JV Opener at Glenbrook South",
-    "01---Grapevine Classic",
-    "Niles West",
-    "Niles Opener",
-    "3. Trevian Invitational",
-    "03 - New York City Invitational Debate and Speech Tournament",
-    "New York City Invitational Debate and Speech Tournament",
-    "6 - nano nagle rr",
-    "Jack Howe Memorial Invitational 2022",
-    "Greenhill Round Robin",
-    "Georgetown Day Schooll",
-    "Kansas Championship Series",
-    "Yale University",
-    "Grapevine HS",
-    "New York City Invitational",
-    "Kansas Flint-Hills District Tournament",
-    "National Speech and Debate Season Opener hosted by UK",
-    "Greenhill HS",
-    "4 - New York City Invitational Debate and Speech Tournament",
-    "Yale Invitational 2021",
-    "Nano Nagle Classic Formerly Voices",
-    "04 - Trevian Invitational",
-    "Lindale Fall TFA",
-    "Bronx New York City Invitational",
-    "loyola invitational",
-    "Washburn Rural-",
-    "02 - Greenhill Fall Classic",
-    "01 - washburn rural",
-    "1--Greenhill Fall Classic",
-    "washburn rural",
-    "Season Opener Kentucky",
-    "1.1 - Greenhill Fall Classic",
-    "Niles Township Invitational",
-    "Lindale TFA NIETOC TOC Classic",
-    "Jacke Howe Memorial",
-    "Jack Howe CSULB",
-    "Greenhill Fall Classic Round Robin",
-    "Greenhill RR",
-    "Marist 2021",
-    "Georgetown Day School",
-    "08 -- East Kansas District Tournament",
-    "1.Niles Township Invitational",
-    "2-Greenhill Fall Classic",
-    "Presentation - Nano Nagle",
-    "5A 2 Speaker Kansas State",
-    "01---Greenhill Fall Classic",
-    "2.Trevian Invitational",
-    "Niles JV Opener",
-    "trevian invitational",
-    "01 - Greenhill RR",
-    "New York Speech and Debate Invitational",
-    "Jacke Howe Memorial Tournament",
-    "2. Greenhill Fall Classic",
-    "02 - Trevian Invitational",
-    "Kansas 6A State",
-    "East Kansas District Tournament",
-    "2 - Greenhill Fall Classic",
-    "New York City",
-    "Yale 2018",
-    "01 -- Washburn Rural Debate Invitational",
-    "Greenhill Main",
-    "Tim Averill Invitational ONLINE",
-    "Yale 2020",
-    "GREENHILL FALL CLASSIC",
-    "2019 Jack Howe Memorial Tournament",
-    "New York City Speech and Debate",
-    "Trevian Invitational",
-    "TREVIAN INVITATIONAL",
-    "Trevian Invatational",
-    "MBA PRACTICE OPENER - 1ac -DNA",
-    "marist 1ac",
-    "Washburn Rural Invitational",
-    "5 - nano nagle",
-    "The Season Opener at UK",
-    "Nano Nagel",
-    "1.0 Greenhill Fall Classic",
-    "Greenhill RR Rd 2",
-    "1---Niles Township Invitational",
-    "Grapevine 2020",
-    "Marist Ivy Street Invitational",
-    "Jack Howe Invitational",
-    "Niles West Invitiational",
-    "NANO NAGLE CLASSIC",
-    "greenhill fall classic",
-    "1 - Kansas City Invitational",
-    "Nano Nagle Voices",
-    "JACK HOWE MEMORIAL",
-    "South Texas Season Opener hosted by Tuloso-Midway High School and Winston Churchill High School",
-    "Nano Nagle Invitational",
-    "1 - Greenhill Fall Classic",
-    "National Speech and Debate Season Opener Hosted by UK",
-    "Greenhill RR Round 7",
-    "Yale University Invitational",
-    "Niles Invitational",
-    "Jack Howe Memorial Tournament at CSU Long Beach",
-    "2 - Jack Howe Memorial Invitational 2022",
-    "Yale tournament",
-    "Loyola Invitational 2020",
-    "Georgetown Fall Unused K Neg",
-    "Washburn Rural",
-    "Novice JV Opener Glenbrook South",
-    "Georgetown Day",
-    "Nano Nagle",
-    "1---trevian invitational",
-    "Jack Howe Memorial Tournament",
-    "1 - Greenhill RR",
-    "Nano Nagle Classic RR (rr)",
-    "Washburn Rural Debate Invitational"
-]
+tournament_names = ['Emory', 'Blake', 'ASU', 'Samford', 'Peninsula', 'MBA',
+                    'Barkley Forum', 'Harvard Westlake', 'Gonzaga', 'Pennsbury',
+                    'Churchill', 'Barkley Forum for High Schools', 'John Edie Holiday Debates Hosted by The Blake School',
+                    'Harvard Westlake Debates', 'Arizona State HDSHC Invitational', 'Peninsula Invitational', 'College Prep',
+                    'Sunvite', 'Harvard-Westlake', 'Strake', 'Lexington Winter Invitational', 'emory', 'University of Houston Cougar Classic',
+                    'Columbia', 'Westlake', 'University of Houston'
+                    ]  
 
 
-# Read the JSON file with UTF-8 encoding
-try:
-    with open(input_file, 'r', encoding='utf-8') as file:
-        data = json.load(file)
+def process_large_json():
+    new_topics_count = 0  # Track how many times we assign a new 'topic'
 
-    # Add a "topic" field based on the event type
-    for item in data:
-        if 'event' in item and 'evidence_set' in item:
-            evidence_set = item['evidence_set']
-            event = item['event']
-            if event == 'PF':
-                item['topic'] = "Sep/Oct " + str(evidence_set%2000) # PF Topic
-            elif event == 'LD':
-                item['topic'] = "Sep/Oct " + str(evidence_set%2000) # LD Topic
+    try:
+        with open(file_path, 'rb') as infile, open(out_path, 'w', encoding='utf-8') as outfile:
+            # Start a valid JSON array in the output
+            outfile.write('[\n')
+            first_item = True
 
-        # Check if tournament field exists
-        if 'tournament' in item and any(tournament_name.lower() in item['tournament'].lower() for tournament_name in tournament_names):
-            item['matching_tournament'] = True
-        else:
-            item['matching_tournament'] = False
+            # Stream each object from the top-level array
+            for item in ijson.items(infile, 'item'):
+                # Check if 'tournament' exists and matches any in tournament_names
+                if 'tournament' in item and any(
+                    t_name.lower() in item['tournament'].lower() 
+                    for t_name in tournament_names
+                ):
+                    # If 'event' and 'evidence_set' exist, we may assign a 'topic'
+                    if 'event' in item and 'evidence_set' in item:
+                        event = item['event']
+                        evidence_set = item['evidence_set']
 
-    # Write updated JSON data to the output file
-    with open(output_file, 'w', encoding='utf-8') as file:
-        json.dump(data, file, indent=4)
+                        if event == 'CX':
+                            item['topic'] = str(evidence_set)
+                            new_topics_count += 1
+                        elif event == 'PF':
+                            item['topic'] = 'Jan ' + str(evidence_set%2000)
+                            new_topics_count += 1
+                        elif event == 'LD':
+                            item['topic'] = 'Jan/Feb ' + str(evidence_set%2000)
+                            new_topics_count += 1
+                        
 
-    print(f"Updated JSON data has been saved to {output_file}")
-except UnicodeDecodeError as e:
-    print(f"Error decoding the file: {e}")
-except json.JSONDecodeError as e:
-    print(f"Error parsing JSON file: {e}")
-except Exception as e:
-    print(f"An unexpected error occurred: {e}")
+                        # If a topic was assigned, remove the 'tournament' field
+                        if 'topic' in item:
+                            del item['tournament']
+
+                # Write comma+newline before each item except the first
+                if not first_item:
+                    outfile.write(',\n')
+                first_item = False
+
+                # Dump the (possibly updated) item
+                json.dump(item, outfile, ensure_ascii=False)
+
+            # Close the JSON array in the output file
+            outfile.write('\n]\n')
+
+        print(f"Done! A new JSON file with updated items has been saved to: {out_path}")
+        print(f"Number of new topics assigned: {new_topics_count}")
+
+    except UnicodeDecodeError as e:
+        print(f"Error decoding the file: {e}")
+    except json.JSONDecodeError as e:
+        print(f"Error parsing JSON file: {e}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        if os.path.exists(out_path):
+            os.remove(out_path)  # Optionally remove incomplete file on error
+
+
+if __name__ == '__main__':
+    process_large_json()
