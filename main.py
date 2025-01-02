@@ -46,6 +46,7 @@ def get_data(
     side: Optional[str] = None,
     topic: Optional[str] = None,
     event: Optional[str] = None,
+    evidence_set: Optional[str] = None,
     search: Optional[str] = None,
     size: int = 50,
     page: int = 1
@@ -111,6 +112,13 @@ def get_data(
             query["bool"]["must"].append({
                 "term": {
                     "event": event
+                }
+            })
+
+        if evidence_set:
+            query["bool"]["must"].append({
+                "term": {
+                    "evidence_set": evidence_set
                 }
             })
 
