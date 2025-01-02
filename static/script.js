@@ -23,11 +23,13 @@ async function fetchData() {
     const side = document.getElementById('sideFilter').value;
     const topic = document.getElementById('topicFilter').value;
     const event = document.getElementById('eventFilter').value;
+    const evidence_set = document.getElementById('evidenceSetFilter').value;
 
     console.log("Search Input:", search);
     console.log("Side Filter:", side);
     console.log("Topic Filter:", topic);
     console.log("Event Filter:", event);
+    console.log("Evidence Set Filter:", evidence_set);
 
     // Build URL parameters
     console.log("Building URL parameters");
@@ -36,6 +38,7 @@ async function fetchData() {
         ...(side && { side }),
         ...(topic && { topic }),
         ...(event && { event }),
+        ...(evidence_set && { evidence_set }),
         page,
         size: 50
     });
@@ -138,6 +141,17 @@ function renderCards(cards) {
         const cardDiv = document.createElement('div');
         cardDiv.className = 'card';
 
+        // Handle 'evidence' being either an array or a string
+        let evidenceContent = 'No evidence';
+        if (Array.isArray(card.evidence)) {
+            evidenceContent = card.evidence.join('<br>');
+        } else if (typeof card.evidence === 'string') {
+            evidenceContent = card.evidence;
+        } else if (card.evidence && typeof card.evidence === 'object') {
+            // Handle other object types if necessary
+            evidenceContent = JSON.stringify(card.evidence);
+        }
+
         cardDiv.innerHTML = `
             <div class="copy-button-container">
                 <img 
@@ -155,12 +169,13 @@ function renderCards(cards) {
                 <button>${card.event || 'N/A'}</button>
                 <button>${card.topic || 'N/A'}</button>
             </div>
-            <div class="evidence">${card.evidence?.join('<br>') || 'No evidence'}</div>
+            <div class="evidence">${evidenceContent}</div>
         `;
         container.appendChild(cardDiv);
         console.log("Rendered card:", card);
     });
 }
+
 
 // Copy the text of a card
 function copyCardText(copyButton) {
@@ -237,6 +252,17 @@ const debouncedFetchData = debounce(() => {
     fetchData();
 }, 300);
 
+function resetFilters() {
+    // Reset side, event, topic to empty
+    document.getElementById('sideFilter').value = '';
+    document.getElementById('eventFilter').value = '';
+    document.getElementById('topicFilter').value = '';
+    document.getElementById('evidenceSetFilter').value = '';
+
+    applyFilters();
+
+}
+
 // Initial data load
 console.log("=== Initial Data Load ===");
 fetchData();
@@ -251,3 +277,4 @@ document.getElementById('searchInput').addEventListener('input', debouncedFetchD
 document.getElementById('sideFilter').addEventListener('change', applyFilters);
 document.getElementById('topicFilter').addEventListener('change', applyFilters);
 document.getElementById('eventFilter').addEventListener('change', applyFilters);
+document.getElementById('evidenceSetFilter').addEventListener('change', applyFilters);
