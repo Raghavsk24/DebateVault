@@ -28,10 +28,8 @@ ALL_TOURNAMENTS = [
     'debate-coaches', 'of-champions'
 ]
 
+# Return file extension
 def get_file_extension(file_path):
-    """
-    Return the file extension ('pdf' or 'docx' or 'unknown').
-    """
     ext = os.path.splitext(file_path)[1].lower()
     if ext == '.pdf':
         return 'pdf'
@@ -40,14 +38,11 @@ def get_file_extension(file_path):
     else:
         return 'unknown'
 
-
+# Return list of plain paragraphs and marked_pararaphs from DOCX file
 def parse_docx(docx_file):
-    """
-    Return two lists: plain_paragraphs and styled_paragraphs for a given DOCX file.
-    """
     document = Document(docx_file)
     plain_paragraphs = []
-    styled_paragraphs = []
+    marked_paragraphs = []
 
     for p in document.paragraphs:
         text = p.text.strip()
@@ -56,8 +51,8 @@ def parse_docx(docx_file):
 
         plain_paragraphs.append(text)
 
-        # Build styled text
-        styled_text = ""
+        # Build marked_paragraphs
+        marked_text = ""
         for run in p.runs:
             run_text = run.text
             if run.bold:
@@ -66,74 +61,62 @@ def parse_docx(docx_file):
                 run_text = f"<u>{run_text}</u>"
             if run.font.highlight_color:
                 run_text = f"<mark>{run_text}</mark>"
-            styled_text += run_text
+            marked_text += run_text
 
-        styled_paragraphs.append(styled_text)
+        marked_paragraphs.append(styled_text)
 
-    return plain_paragraphs, styled_paragraphs
+    return plain_paragraphs, marked_paragraphs
 
-
+# Return list of plain paragraphs and marked_pararaphs from the PDF file
 def parse_pdf(pdf_file):
-    """
-    Return two lists: plain_paragraphs and styled_paragraphs for a given PDF file.
-    Uses fitz (PyMuPDF) to extract both plain text and basic bold styling in one pass.
-    """
     doc = fitz.open(pdf_file)
     plain_paragraphs = []
-    styled_paragraphs = []
+    marked_paragraphs = []
 
     for page in doc:
         blocks = page.get_text("dict")["blocks"]
         for block in blocks:
-            if block["type"] == 0:  # text block
+            if block["type"] == 0:
                 plain_spans = []
-                styled_spans = []
+                marked_spans = []
 
                 for line in block.get("lines", []):
                     for span in line.get("spans", []):
+                        
                         # Plain text
                         plain_spans.append(span["text"])
 
-                        # Minimal styled text (bold detection via font name)
+                        # Minimal marked text
                         span_text = span["text"]
                         if "Bold" in span["font"]:
                             span_text = f"<b>{span_text}</b>"
-                        styled_spans.append(span_text)
+                        marked_spans.append(span_text)
 
                     # Separate lines with a newline if desired
                     plain_spans.append("\n")
-                    styled_spans.append("\n")
+                    marked_spans.append("\n")
 
                 paragraph_plain = "".join(plain_spans).strip()
-                paragraph_styled = "".join(styled_spans).strip()
+                paragraph_marked = "".join(marked_spans).strip()
                 if paragraph_plain:
                     plain_paragraphs.append(paragraph_plain)
-                    styled_paragraphs.append(paragraph_styled)
+                    marked_paragraphs.append(paragraph_marked)
 
-    return plain_paragraphs, styled_paragraphs
+    return plain_paragraphs, marked_paragraphs
 
-
+# Get Side from file path (AFF or NEG) 
 def extract_side(filepath):
-    """
-    Attempt to detect AFF/NEG side from the filename.
-    """
     filename = os.path.basename(filepath).lower()
-    if '-con-' in filename or '-neg-' in filename:
+    if '-con-' in filename or '-neg-' in filename: # con if event is 'PF' and NEG if event is 'LD' or 'CX'
         return 'Neg'
-    elif '-pro-' in filename or '-aff-' in filename:
+    elif '-pro-' in filename or '-aff-' in filename: # pro if event is 'PF' and AFF if event is 'LD' or 'CX'
         return 'Aff'
     else:
         return None
 
-
+# Detect topic based on tournament name
 def determine_topic(filename):
-    """
-    Attempt to detect the topic based on known tournament strings.
-    Customize this as needed for your own naming conventions.
-    """
     filename = filename.lower()
-
-    # Examples of how you might parse out the topic. Adjust as needed:
     tournaments_sep_oct = [
         'loyola-invitational', 'hendrickson-tfatoc', 'niles-township', 'season-opener',
         'grapevine-classic', 'falls-knight', 'washburn-rural-debate', 'greenhill-fall-classic',
