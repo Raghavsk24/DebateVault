@@ -1,310 +1,336 @@
 import os
 import json
-import re
-import zipfile
-import tempfile
+import pandas as pd
 from docx import Document
+import fitz
 from tqdm import tqdm
-import logging
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
-# Define TOURNAMENTS Dictionary
-TOURNAMENTS = {
-    "Sep/Oct 24": [
-        'loyola-', 'opener-', 'grapevine-', 'yale-', 'georgetown-day',
-        'jack-howe', 'nano-nagle', 'new-york', 'tim-averill', 'mid-america-',
-        'meadows-', 'niles-', 'trevian-', 'westminster-', 'greenhill-',
-        'marist-', 'nova-'
-    ],
-    "Nov/Dec 24": [
-        'minneapple-', 'longhorn-', 'peach-', 'michigan-', 'badgerland-',
-        'ucla-', 'swing-', 'glenbrooks-', 'blue', 'series-1-',
-        'holiday-classic-', 'costa-', 'chung-', 'bison-', 'katy-taylor-',
-        'princeton-', 'paradigm-', 'isidore-'
-    ],
-    "Jan 25": [
-        'john-', 'strake-'
-    ]
-}
+# Global list of tournament keywords (Sep/Oct, Nov/Dec, Jan/Feb) for quick file filtering
+ALL_TOURNAMENTS = [
+    # Sep/Oct tournaments
+    'loyola', 'opener', 'grapevine', 'niles', 'knight', 'scottsdale', 'washburn', 'greenhill',
+    'yale', 'stephen', 'lindale', 'america', 'georgetown', 'bvsw', 'marist', 'howe', 'nova',
+    'delores', 'tennent', 'westminster', 'york', 'trevian', 'averill', 'kansas', 'heart', 'iowa',
+    # Nov/Dec tournaments
+    'blue', 'kckcc', 'quarry', 'michigan', 'hockaday', 'minneapple', 'peach', 'badgerland',
+    'dragon', 'katy', 'stampede', 'ucla', 'swing', 'glenbrooks', 'longhorn', 'princeton',
+    'series-1', 'mamaroneck', 'alta-silver', 'alief', 'costa', 'cypress', 'wphs', 'holiday-classic',
+    'paradigm', 'isidore-newman', 'chapel-hill',
+    # Jan/Feb tournaments
+    'blake', 'college-prep', 'strake-jesuit', 'billy-tate', 'churchill', 'hdshc', 'samford',
+    'peninsula', 'harvard-westlake', 'cavalier', 'rebel-speech', 'mount-vernon', 'cougar-classic',
+    'jean-ward', 'camp-cabot', 'columbia', 'pennsbury', 'unlv', 'foley', 'jasper', 'regatta',
+    'marshall-spalter', 'bellaire', 'three-rivers', 'pennsylvania-liberty', 'newman-smith', 'langham',
+    'stanford', 'harvard-national', 'bingham-bids', 'berkeley', 'chisholm', 'john-marshall',
+    'series-2', 'milo', 'series-3'
+]
 
-# Precompile the URL regex pattern for efficiency
-URL_PATTERN = re.compile(r'http[s]?://\S+')
-
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
-
-# Extract ZIP File to specified directory
-def unzip_file(zip_path, extract_to):
-
-    # Log Error if ZIP File does not exist
-    if not zipfile.is_zipfile(zip_path):
-        logger.error(f"The file {zip_path} is not a valid ZIP archive.")
-        return
-    
-    # Extract zipf contents
-    with zipfile.ZipFile(zip_path, 'r') as zipf:
-        zipf.extractall(extract_to)
-    logger.info(f"Extracted {zip_path} to {extract_to}")
-
-
-# Extract stripped paragraphs from .docx file
-def get_paragraphs(docx_file):
-
-    # Check if file exists
-    if not os.path.exists(docx_file):
-        logger.error(f"The file {docx_file} does not exist.")
-        return []
-    try:
-        document = Document(docx_file)
-        return [p.text.strip() for p in document.paragraphs if p.text.strip()] # Return stripped paragraphs in file in an array
-    except Exception as e:
-        logger.error(f"Error reading {docx_file}: {e}")
-        return []
-
-# Extract paragraphs with styling (bold, underline, highlight) from .docx file
-def get_styled_paragraphs(docx_file):
+def get_file_extension(file_path):
     """
-    Extracts paragraphs with styling (bold, underline, highlight) from a .docx file.
+    Return the file extension ('pdf' or 'docx' or 'unknown').
     """
-    if not os.path.exists(docx_file):
-        logger.error(f"The file {docx_file} does not exist.")
-        return []
-    try:
-        document = Document(docx_file)
-        styled_paragraphs = []
-        for paragraph in document.paragraphs:
-            if paragraph.text.strip():
-                styled_text = ""
-                for run in paragraph.runs:
-                    run_text = run.text
-                    if run.bold:
-                        run_text = f"<b>{run_text}</b>"
-                    if run.underline:
-                        run_text = f"<u>{run_text}</u>"
-                    if run.font.highlight_color:
-                        run_text = f"<mark>{run_text}</mark>"
-                    styled_text += run_text
-                styled_paragraphs.append(styled_text)
-        return styled_paragraphs
-    except Exception as e:
-        logger.error(f"Error reading {docx_file}: {e}")
-        return []
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext == '.pdf':
+        return 'pdf'
+    elif ext == '.docx':
+        return 'docx'
+    else:
+        return 'unknown'
 
-# Check if text contains url
-def contains_url(text):
-    return URL_PATTERN.search(text) is not None
 
-# Validate Card Structure
-def is_card_valid(paragraphs, index):
+def parse_docx(docx_file):
+    """
+    Return two lists: plain_paragraphs and styled_paragraphs for a given DOCX file.
+    """
+    document = Document(docx_file)
+    plain_paragraphs = []
+    styled_paragraphs = []
 
-    # Check that card is in valid indicie
-    if not (0 <= index - 1 < len(paragraphs) and 0 <= index + 1 < len(paragraphs)):
-        return False
-    
-    # Check that citation paragraph contains url
-    if not contains_url(paragraphs[index]):
-        return False
-    
-    # Extract evidence paragraphs
-    j = index + 2
-    while j < len(paragraphs) and not contains_url(paragraphs[j]):
-        j += 1
-    if j - 1 <= index + 1:
-        return False
-    
-    # Return tagline, citation and evidence
-    return {
-        "tagline": paragraphs[index - 1],
-        "citation": paragraphs[index],
-        "evidence": paragraphs[index + 1:j - 1]
-    }
+    for p in document.paragraphs:
+        text = p.text.strip()
+        if not text:
+            continue
 
-# Determine side from filename
+        plain_paragraphs.append(text)
+
+        # Build styled text
+        styled_text = ""
+        for run in p.runs:
+            run_text = run.text
+            if run.bold:
+                run_text = f"<b>{run_text}</b>"
+            if run.underline:
+                run_text = f"<u>{run_text}</u>"
+            if run.font.highlight_color:
+                run_text = f"<mark>{run_text}</mark>"
+            styled_text += run_text
+
+        styled_paragraphs.append(styled_text)
+
+    return plain_paragraphs, styled_paragraphs
+
+
+def parse_pdf(pdf_file):
+    """
+    Return two lists: plain_paragraphs and styled_paragraphs for a given PDF file.
+    Uses fitz (PyMuPDF) to extract both plain text and basic bold styling in one pass.
+    """
+    doc = fitz.open(pdf_file)
+    plain_paragraphs = []
+    styled_paragraphs = []
+
+    for page in doc:
+        blocks = page.get_text("dict")["blocks"]
+        for block in blocks:
+            if block["type"] == 0:  # text block
+                plain_spans = []
+                styled_spans = []
+
+                for line in block.get("lines", []):
+                    for span in line.get("spans", []):
+                        # Plain text
+                        plain_spans.append(span["text"])
+
+                        # Minimal styled text (bold detection via font name)
+                        span_text = span["text"]
+                        if "Bold" in span["font"]:
+                            span_text = f"<b>{span_text}</b>"
+                        styled_spans.append(span_text)
+
+                    # Separate lines with a newline if desired
+                    plain_spans.append("\n")
+                    styled_spans.append("\n")
+
+                paragraph_plain = "".join(plain_spans).strip()
+                paragraph_styled = "".join(styled_spans).strip()
+                if paragraph_plain:
+                    plain_paragraphs.append(paragraph_plain)
+                    styled_paragraphs.append(paragraph_styled)
+
+    return plain_paragraphs, styled_paragraphs
+
+
 def extract_side(filepath):
+    """
+    Attempt to detect AFF/NEG side from the filename.
+    """
     filename = os.path.basename(filepath).lower()
-    if 'con' in filename or 'neg' in filename:
+    if '-con-' in filename or '-neg-' in filename:
         return 'Neg'
-    elif 'pro' in filename or 'aff' in filename:
+    elif '-pro-' in filename or '-aff-' in filename:
         return 'Aff'
     else:
-        logger.warning(f"Side not found in filename '{filename}'")
         return None
 
-# Determine topic from tournament
+
 def determine_topic(filename):
+    """
+    Attempt to detect the topic based on known tournament strings.
+    Customize this as needed for your own naming conventions.
+    """
     filename = filename.lower()
-    for topic, tournaments in TOURNAMENTS.items():
-        for tournament in tournaments:
-            if tournament in filename:
-                logger.info(f"Matched {tournament} in {filename} -> {topic}")
-                return topic
-    logger.warning(f"No topic match for {filename}")
+
+    # Examples of how you might parse out the topic. Adjust as needed:
+    tournaments_sep_oct = [
+        'loyola-invitational', 'hendrickson-tfatoc', 'niles-township', 'season-opener',
+        'grapevine-classic', 'falls-knight', 'washburn-rural-debate', 'greenhill-fall-classic',
+        'yale-invitational', 'stephen-stewart', 'lindale-tfa', 'mid-america', 'georgetown-day-school',
+        'bvsw', 'marist-ivy', 'jack-howe', 'nova-titan', 'delores-taylor', 'nano-nagle',
+        'william-tennent', 'westminster', 'new-york-city-invitational', 'trevian-invitational',
+        'tim-averill', 'kansas-city-invitational', 'heart-of-texas', 'iowa-caucus'
+    ]
+    tournaments_nov_dec = [
+        'blue-key', 'kckcc', 'quarry-lane', 'of-michigan', 'hockaday-school', 'minneapple',
+        'peach-state', 'badgerland-chung', 'debate-dragon', 'katy-taylor', 'bison-stampede',
+        'ucla', 'cat-swing', 'glenbrooks-speech', 'longhorn-classic', 'princeton-classic',
+        'series-1', 'mamaroneck', 'alta-silver', 'alief', 'la-costa', 'cypress-', 'wphs',
+        'holiday-classic', 'paradigm-', 'isidore-newman', 'chapel-hill'
+    ]
+    tournaments_jan_feb = [
+        'blake-', 'college-prep', 'strake-jesuit', 'billy-tate', 'churchill-', 'hdshc',
+        'samford-', 'peninsula-', 'harvard-westlake', 'cavalier-', 'rebel-speech',
+        'mount-vernon', 'cougar-classic', 'jean-ward', 'camp-cabot', 'columbia-',
+        'pennsbury-falcon', 'unlv', 'martin-luther', 'barkely-forum', 'jasper-howl', 'regatta',
+        'marshall-spalter', 'bellaire', 'three-rivers', 'pennsylvania-liberty', 'newman-smith',
+        'langham', 'stanford', 'harvard-national', 'bingham-bids', 'berkeley-', 'chisholm-',
+        'john-marshall', 'series-2', 'milo-', 'series-3'
+    ]
+
+    for t in tournaments_sep_oct:
+        if t in filename:
+            return 'Sep/Oct 24'
+    for t in tournaments_nov_dec:
+        if t in filename:
+            return 'Nov/Dec 24'
+    for t in tournaments_jan_feb:
+        if t in filename:
+            return 'Jan/Feb 25'
     return None
 
-# Extract valid cards from paragraphs
-def cut_cards(paragraphs, styled_paragraphs, side, event, topic):
-    cards = []
-    evidence_set = 2024 # Set evidence to 2024
-    
-    # Get tagline, citation and evidence lists
-    for i in range(1, len(paragraphs) - 1):
-        card_data = is_card_valid(paragraphs, i)
-        if card_data:
-            tagline = card_data["tagline"]
-            citation = card_data["citation"]
-            evidence_paragraphs = card_data["evidence"]
-            
 
-            if not all([side, event, topic]):
-                continue  # Skip if any essential field is missing
-            
-            # map evidence paragraphs to styled paragraphs
-            evidence_indices = range(i + 1, i + 1 + len(evidence_paragraphs))
-            styled_filtered_evidence = [
-                styled_paragraphs[j]
-                for j in evidence_indices
-                if j < len(styled_paragraphs)
-            ]
-            
-            # Append fields to card
-            cards.append({
-                "tagline": tagline,
-                "citation": citation,
-                "evidence": styled_filtered_evidence,
-                "side": side,
-                "event": event.upper(),
-                "topic": topic,
-                "evidence_set": evidence_set
-            })
-    
+def cut_card(paragraphs, styled_paragraphs, file_path, side=None, topic=None):
+    """
+    Given lists of plain and styled paragraphs, plus optional side/topic info,
+    extract "cards" (tagline + citation + evidence) using simple logic:
+    - If a paragraph contains 'https', we treat that as the citation.
+    - The immediately preceding paragraph is the tagline.
+    - All following paragraphs (until the next 'https') is the evidence block.
+    """
+    cards = []
+    i = 0
+    while i < len(paragraphs):
+        if 'https' in paragraphs[i]:
+            tagline_index = i - 1
+            tagline = paragraphs[tagline_index] if tagline_index >= 0 else None
+            styled_tagline = styled_paragraphs[tagline_index] if tagline_index >= 0 else None
+
+            citation = paragraphs[i]
+            styled_citation = styled_paragraphs[i]
+
+            evidence = []
+            styled_evidence = []
+            j = i + 1
+
+            # Accumulate evidence until next 'https' or end
+            while j < len(paragraphs) and 'https' not in paragraphs[j]:
+                evidence.append(paragraphs[j])
+                styled_evidence.append(styled_paragraphs[j])
+                j += 1
+
+            if evidence and tagline:
+                debate_type = 'LD'  # Hard-coded in your logic
+                card = {
+                    'tagline': tagline,
+                    'citation': citation,
+                    'evidence': evidence,
+                    'side': side,
+                    'debate_type': debate_type,
+                    'topic': topic,
+                    'file_path': file_path,
+                    'marked_tagline': styled_tagline,
+                    'marked_citation': styled_citation,
+                    'marked_evidence': styled_evidence
+                }
+                cards.append(card)
+
+            i = j  # jump past evidence
+        else:
+            i += 1
     return cards
 
-# Find all files within directory
-def find_docx_files(root_folders):
-    docx_files = [] # Initalize empty list 
-    all_tournaments = set(sum(TOURNAMENTS.values(), []))  # Get all tournaments from global TOURNAMENTS dictionary
 
-    # Get files with specified tournaments only 
+def find_files(root_folders):
+    """
+    Find all .docx/.pdf files in the given folders whose filenames
+    contain any known tournament keywords (for speed).
+    """
+    files_found = []
     for root_folder in root_folders:
-        if not os.path.exists(root_folder):
-            logger.error(f"Folder not found - {root_folder}")
-            continue
         for dirpath, _, filenames in os.walk(root_folder):
             for file in filenames:
-                if file.lower().endswith('.docx'):
-                    if any(tournament in file.lower() for tournament in all_tournaments):
-                        docx_files.append(os.path.join(dirpath, file))
-    logger.info(f"Found {len(docx_files)} .docx files across all folders.")
-    return docx_files
+                ext = os.path.splitext(file)[1].lower()
+                if ext in ['.docx', '.pdf'] and any(t in file.lower() for t in ALL_TOURNAMENTS):
+                    files_found.append(os.path.join(dirpath, file))
 
-# Process .docx file and extract cards
-def process_docx_file(docx_file):
+    print(f"Found {len(files_found)} files (.docx or .pdf) across all folders.")
+    return files_found
+
+
+def process_file(file):
+    """
+    Main wrapper to parse a file (DOCX or PDF) in one pass, detect side/topic,
+    then cut the cards.
+    """
     try:
-        logger.info(f"Processing: {docx_file}")
-        paragraphs = get_paragraphs(docx_file) # Get paragraphs
-        if not paragraphs:
-            logger.warning(f"Skipping empty file: {docx_file}")
-            return []
-        styled_paragraphs = get_styled_paragraphs(docx_file) # Get Styled Paragraphs
-        side = extract_side(docx_file)
-
-        # Drop cards with invalid side
-        if not side:
-            logger.warning(f"Skipping file due to undefined side: {docx_file}")
-            return []
-        
-        filename = os.path.basename(docx_file)
-        event = "PF" # Set event to PF
-        
-        # Set policyc ards to topic 2024
-        if event.upper() == "CX":
-            topic = "2024"
-
-        # Determine topic for LD & PF based on dictioanry
+        file_type = get_file_extension(file)
+        if file_type == 'docx':
+            paragraphs, styled_paragraphs = parse_docx(file)
+        elif file_type == 'pdf':
+            paragraphs, styled_paragraphs = parse_pdf(file)
         else:
-            topic = determine_topic(filename)
-            if not topic:
-                logger.warning(f"Skipping file due to undefined topic: {docx_file}")
-                return []
-        # Cut and return cards
-        cards = cut_cards(paragraphs, styled_paragraphs, side, event, topic)
-        logger.info(f"Valid cards in {docx_file}: {len(cards)}")
-        return cards
+            return []
+
+        # Quick safety check
+        if not paragraphs or not styled_paragraphs or len(paragraphs) != len(styled_paragraphs):
+            return []
+
+        # Extract side and topic once, not per card
+        side = extract_side(file)
+        topic = determine_topic(file)
+
+        # Cut the cards
+        return cut_card(paragraphs, styled_paragraphs, file, side=side, topic=topic)
 
     except Exception as e:
-        logger.error(f"Error processing {docx_file}: {e}")
+        print(f"Error processing {file}: {e}")
         return []
 
-# Process cards by batch
-def process_batch(docx_files, category, event):
+
+def process_batch_parallel(files, max_workers=8):
+    """
+    Process a list of files in parallel using a ProcessPoolExecutor.
+    Returns a list of all "cards" found across the batch.
+    """
     all_cards = []
-    for docx_file in tqdm(docx_files, desc=f"Processing {category} files", unit="file"):
-        cards = process_docx_file(docx_file)
-        all_cards.extend(cards)
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(process_file, file): file for file in files}
+        for future in tqdm(as_completed(futures), total=len(futures),
+                           desc="Processing files", unit="file"):
+            result = future.result()
+            if result:
+                all_cards.extend(result)
     return all_cards
 
-def main():
-    root_folders = {
-        "PF": [r'C:\Users\senth\DebateVault\hspf24-weekly-2024-12-24.zip',
-               r'C:\Users\senth\DebateVault\hspf24-weekly-2024-12-17.zip',
-               r'C:\Users\senth\DebateVault\hspf24-weekly-2024-11-26.zip',
-               r'C:\Users\senth\DebateVault\hspf24-weekly-2024-11-19.zip',
-               r'C:\Users\senth\DebateVault\hspf24-weekly-2024-11-12.zip',
-               r'C:\Users\senth\DebateVault\hspf24-weekly-2024-11-05.zip',
-               r'C:\Users\senth\DebateVault\hspf24-weekly-2024-10-29.zip',
-               r'C:\Users\senth\DebateVault\hspf24-weekly-2024-10-22.zip',
-               r'C:\Users\senth\DebateVault\hspf24-weekly-2024-10-08.zip',
-               r'C:\Users\senth\DebateVault\hspf24-weekly-2024-10-01.zip',
-               r'C:\Users\senth\DebateVault\hspf24-weekly-2024-09-24.zip',
-               r'C:\Users\senth\DebateVault\hspf24-weekly-2024-09-17.zip',
-               r'C:\Users\senth\DebateVault\hspf24-weekly-2024-09-10.zip',
-               r'C:\Users\senth\DebateVault\hspf24-weekly-2024-09-03.zip'
-        ]
 
-    }
-
-    output_file = 'raw_PF_cards.json' # Define output file
-    all_extracted_cards = []
-
-    for category, folders in root_folders.items():
-        logger.info(f"Processing category: {category}")
-        with tempfile.TemporaryDirectory() as temp_dir:
-            for folder in folders:
-                if folder.lower().endswith('.zip'):
-                    try:
-                        unzip_file(folder, temp_dir)
-                    except Exception as e:
-                        logger.error(f"Error extracting {folder}: {e}")
-                        continue
-                else:
-                    temp_dir = folder  # If it's not a ZIP File, assume it's a directory
-
-            # Find .docx files within extracted or specified directories
-            docx_files = find_docx_files([temp_dir])
-            if not docx_files:
-                logger.warning(f"No .docx files found for category {category}.")
-                continue
-
-            # Process .docx files sequentially
-            cards = process_batch(docx_files, category, event=category)
-            logger.info(f"Processed {len(cards)} cards for category {category}.")
-            all_extracted_cards.extend(cards)
-
-    # Save all extracted cards to a JSON file
-    if all_extracted_cards:
-        with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(all_extracted_cards, f, ensure_ascii=False, indent=4)
-        logger.info(f"Cards saved to {output_file}")
-    else:
-        logger.warning("No cards were extracted.")
-
-    logger.info("All files processed successfully.")
-
+# ------------------- Main Execution -------------------
 if __name__ == "__main__":
-    main()
+    # Set the root folder(s) where your DOCX/PDF files are stored.
+    root_folders = ["/workspaces/DebateVault/hsld24_all_cards"]
+
+    # Set the output folder for CSV files.
+    output_folder = "/workspaces/DebateVault/output"
+    os.makedirs(output_folder, exist_ok=True)
+
+    # Find all matching files.
+    all_files = find_files(root_folders)
+
+    # (Optional) Load a checkpoint here if needed; otherwise, set processed_files to empty.
+    processed_files = set()
+
+    # Filter out files already processed.
+    unprocessed_files = [f for f in all_files if f not in processed_files]
+    print(f"Total files to process: {len(unprocessed_files)}")
+
+    # Split the list of unprocessed files into N batches (tweak as needed).
+    num_batches = 100
+    batch_size = max(1, len(unprocessed_files) // num_batches)
+    batches = [unprocessed_files[i:i + batch_size]
+               for i in range(0, len(unprocessed_files), batch_size)]
+    print(f"Created {len(batches)} batches.")
+
+    # Specify the starting batch (e.g., 1 to process from the beginning).
+    start_batch = 23
+
+    # Process each batch starting from the specified start_batch.
+    for batch_num, batch_files in enumerate(batches, start=1):
+        if batch_num < start_batch:
+            print(f"Skipping batch {batch_num} as it's already processed.")
+            processed_files.update(batch_files)
+            continue
+
+        print(f"\nProcessing batch {batch_num} with {len(batch_files)} files...")
+        # Adjust max_workers based on your environment (e.g., 4, 8, etc.)
+        cards = process_batch_parallel(batch_files, max_workers=4)
+        if not cards:
+            print(f"No cards found in batch {batch_num}.")
+        else:
+            df_cards = pd.DataFrame(cards)
+            output_csv = os.path.join(output_folder, f"cards_batch_{batch_num}.csv")
+            df_cards.to_csv(output_csv, index=False, encoding="utf-8")
+            print(f"Batch {batch_num}: Saved {len(df_cards)} cards to {output_csv}")
+
+        # Update checkpoint in memory (or write to a file if needed).
+        processed_files.update(batch_files)
+
+    print("All batches processed successfully.")
