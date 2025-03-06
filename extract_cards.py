@@ -6,7 +6,7 @@ import fitz
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-# Global list of tournament keywords (Sep/Oct, Nov/Dec, Jan/Feb) for quick file filtering
+# Global list of tournaments
 ALL_TOURNAMENTS = [
     # Sep/Oct tournaments
     'loyola', 'opener', 'grapevine', 'niles', 'knight', 'scottsdale', 'washburn', 'greenhill',
@@ -23,7 +23,9 @@ ALL_TOURNAMENTS = [
     'jean-ward', 'camp-cabot', 'columbia', 'pennsbury', 'unlv', 'foley', 'jasper', 'regatta',
     'marshall-spalter', 'bellaire', 'three-rivers', 'pennsylvania-liberty', 'newman-smith', 'langham',
     'stanford', 'harvard-national', 'bingham-bids', 'berkeley', 'chisholm', 'john-marshall',
-    'series-2', 'milo', 'series-3'
+    'series-2', 'milo', 'series-3',
+    # March/April tournaments
+    'debate-coaches', 'of-champions'
 ]
 
 def get_file_extension(file_path):
