@@ -1,18 +1,16 @@
 import os
 import pandas as pd
 from tqdm import tqdm
+import argparse
 
 def merge_csvs(input_folder, output_file):
-    # List and sort CSV files in the input folder
+    # Store CSV Files in input folder
     all_csv_files = [
         os.path.join(input_folder, f)
         for f in os.listdir(input_folder)
         if f.endswith('.csv')
     ]
     all_csv_files.sort()
-
-    # Keep only the first 30
-    all_csv_files = all_csv_files[:]
 
     df_list = []
 
@@ -29,6 +27,8 @@ def merge_csvs(input_folder, output_file):
     print(f"\nMerged {len(all_csv_files)} CSV files into {output_file}")
 
 if __name__ == "__main__":
-    input_folder = "output2"       # Folder containing your CSV files
-    output_file = "hspolicy24_all_2025_03_04.csv"    # Name of the output CSV file
-    merge_csvs(input_folder, output_file)
+    parser = argparse.ArgumentParser(description="Merge CSV Files in input directory.")
+    parser.add_argument("--input_dir", required=True, help="Path to the input directory with CSVs")
+    parser.add_argument("--output_csv", required=True, help="Path to the output CSV")
+    args = parser.parse_args()
+    merge_csvs(args.input_dir, args.output_csv)
