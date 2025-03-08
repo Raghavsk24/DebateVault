@@ -1,5 +1,6 @@
 import os
 import json
+import argparse
 import pandas as pd
 from docx import Document
 import fitz
@@ -8,6 +9,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 # Global list of tournaments
 ALL_TOURNAMENTS = [
+
     # Sep/Oct tournaments
     'loyola', 'opener', 'grapevine', 'niles', 'knight', 'scottsdale', 'washburn', 'greenhill',
     'yale', 'stephen', 'lindale', 'america', 'georgetown', 'bvsw', 'marist', 'howe', 'nova',
@@ -63,7 +65,7 @@ def parse_docx(docx_file):
                 run_text = f"<mark>{run_text}</mark>"
             marked_text += run_text
 
-        marked_paragraphs.append(styled_text)
+        marked_paragraphs.append(marked_text)
 
     return plain_paragraphs, marked_paragraphs
 
@@ -117,6 +119,7 @@ def extract_side(filepath):
 # Detect topic based on tournament name
 def determine_topic(filename):
     filename = filename.lower()
+
     tournaments_sep_oct = [
         'loyola-invitational', 'hendrickson-tfatoc', 'niles-township', 'season-opener',
         'grapevine-classic', 'falls-knight', 'washburn-rural-debate', 'greenhill-fall-classic',
@@ -153,63 +156,44 @@ def determine_topic(filename):
             return 'Jan/Feb 25'
     return None
 
-
-def cut_card(paragraphs, styled_paragraphs, file_path, side=None, topic=None):
-    """
-    Given lists of plain and styled paragraphs, plus optional side/topic info,
-    extract "cards" (tagline + citation + evidence) using simple logic:
-    - If a paragraph contains 'https', we treat that as the citation.
-    - The immediately preceding paragraph is the tagline.
-    - All following paragraphs (until the next 'https') is the evidence block.
-    """
+# Cut cards with tagline, citation, evidence, fil path, side, topic and event
+def cut_card(paragraphs, marked_paragraphs, file_path, side=None, topic=None, event=None):
     cards = []
     i = 0
     while i < len(paragraphs):
         if 'https' in paragraphs[i]:
+            # Tagline
             tagline_index = i - 1
             tagline = paragraphs[tagline_index] if tagline_index >= 0 else None
-            styled_tagline = styled_paragraphs[tagline_index] if tagline_index >= 0 else None
 
+            # Citation
             citation = paragraphs[i]
-            styled_citation = styled_paragraphs[i]
 
+            # Evidence
             evidence = []
-            styled_evidence = []
             j = i + 1
-
-            # Accumulate evidence until next 'https' or end
             while j < len(paragraphs) and 'https' not in paragraphs[j]:
-                evidence.append(paragraphs[j])
-                styled_evidence.append(styled_paragraphs[j])
+                evidence.append(marked_paragraphs[j])
                 j += 1
 
-            if evidence and tagline:
-                debate_type = 'LD'  # Hard-coded in your logic
+            if tagline and citation and evidence:
                 card = {
                     'tagline': tagline,
                     'citation': citation,
                     'evidence': evidence,
                     'side': side,
-                    'debate_type': debate_type,
+                    'event': event,
                     'topic': topic,
                     'file_path': file_path,
-                    'marked_tagline': styled_tagline,
-                    'marked_citation': styled_citation,
-                    'marked_evidence': styled_evidence
                 }
                 cards.append(card)
-
             i = j  # jump past evidence
         else:
             i += 1
     return cards
 
-
+# Get all PDF and DOCX Files from directory
 def find_files(root_folders):
-    """
-    Find all .docx/.pdf files in the given folders whose filenames
-    contain any known tournament keywords (for speed).
-    """
     files_found = []
     for root_folder in root_folders:
         for dirpath, _, filenames in os.walk(root_folder):
@@ -221,45 +205,37 @@ def find_files(root_folders):
     print(f"Found {len(files_found)} files (.docx or .pdf) across all folders.")
     return files_found
 
-
-def process_file(file):
-    """
-    Main wrapper to parse a file (DOCX or PDF) in one pass, detect side/topic,
-    then cut the cards.
-    """
+# Process files in one pass
+def process_file(file, event=None):
     try:
         file_type = get_file_extension(file)
         if file_type == 'docx':
-            paragraphs, styled_paragraphs = parse_docx(file)
+            paragraphs, marked_paragraphs = parse_docx(file)
         elif file_type == 'pdf':
-            paragraphs, styled_paragraphs = parse_pdf(file)
+            paragraphs, marked_paragraphs = parse_pdf(file)
         else:
             return []
 
-        # Quick safety check
-        if not paragraphs or not styled_paragraphs or len(paragraphs) != len(styled_paragraphs):
+        # Check that plain_paragraphs = marked_paragraphs
+        if not paragraphs or not marked_paragraphs or len(paragraphs) != len(marked_paragraphs):
             return []
 
-        # Extract side and topic once, not per card
+        # Extract side and topic once per file
         side = extract_side(file)
         topic = determine_topic(file)
 
-        # Cut the cards
-        return cut_card(paragraphs, styled_paragraphs, file, side=side, topic=topic)
+        # Cut Card
+        return cut_card(paragraphs, marked_paragraphs, file, side=side, topic=topic, event=event)
 
     except Exception as e:
         print(f"Error processing {file}: {e}")
         return []
 
-
-def process_batch_parallel(files, max_workers=8):
-    """
-    Process a list of files in parallel using a ProcessPoolExecutor.
-    Returns a list of all "cards" found across the batch.
-    """
+# Process files in batches and parallel using ParallelPoolExecutor
+def process_batch_parallel(files, event, max_workers=8):
     all_cards = []
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(process_file, file): file for file in files}
+        futures = {executor.submit(process_file, file, event): file for file in files}
         for future in tqdm(as_completed(futures), total=len(futures),
                            desc="Processing files", unit="file"):
             result = future.result()
@@ -268,34 +244,41 @@ def process_batch_parallel(files, max_workers=8):
     return all_cards
 
 
-# ------------------- Main Execution -------------------
-if __name__ == "__main__":
-    # Set the root folder(s) where your DOCX/PDF files are stored.
-    root_folders = ["/workspaces/DebateVault/hsld24_all_cards"]
 
-    # Set the output folder for CSV files.
-    output_folder = "/workspaces/DebateVault/output"
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Process DOCX and PDF Files for debate cards.")
+    parser.add_argument("--input_dir", required=True, help="Path to the input directory with cards")
+    parser.add_argument("--output_dir", required=True, help="Path to the output directory")
+    parser.add_argument("--event", required=True, help="Enter event category of all cards (e.g PF, LD, or CX)")
+    args = parser.parse_args()
+
+    # Set input and output folder
+    input_folder = args.input_dir
+    output_folder = args.output_dir
     os.makedirs(output_folder, exist_ok=True)
 
-    # Find all matching files.
-    all_files = find_files(root_folders)
+    # Set event
+    event = args.event
 
-    # (Optional) Load a checkpoint here if needed; otherwise, set processed_files to empty.
+    # Find all matching files.
+    all_files = find_files([input_folder])
+
+    # Load checkpoint
     processed_files = set()
 
     # Filter out files already processed.
     unprocessed_files = [f for f in all_files if f not in processed_files]
     print(f"Total files to process: {len(unprocessed_files)}")
 
-    # Split the list of unprocessed files into N batches (tweak as needed).
+    # Split the list of unprocessed files into N batches.
     num_batches = 100
     batch_size = max(1, len(unprocessed_files) // num_batches)
     batches = [unprocessed_files[i:i + batch_size]
                for i in range(0, len(unprocessed_files), batch_size)]
     print(f"Created {len(batches)} batches.")
 
-    # Specify the starting batch (e.g., 1 to process from the beginning).
-    start_batch = 23
+    # Specify the starting batch 
+    start_batch =1
 
     # Process each batch starting from the specified start_batch.
     for batch_num, batch_files in enumerate(batches, start=1):
@@ -305,8 +288,7 @@ if __name__ == "__main__":
             continue
 
         print(f"\nProcessing batch {batch_num} with {len(batch_files)} files...")
-        # Adjust max_workers based on your environment (e.g., 4, 8, etc.)
-        cards = process_batch_parallel(batch_files, max_workers=4)
+        cards = process_batch_parallel(batch_files, event, max_workers=4)
         if not cards:
             print(f"No cards found in batch {batch_num}.")
         else:
@@ -315,7 +297,7 @@ if __name__ == "__main__":
             df_cards.to_csv(output_csv, index=False, encoding="utf-8")
             print(f"Batch {batch_num}: Saved {len(df_cards)} cards to {output_csv}")
 
-        # Update checkpoint in memory (or write to a file if needed).
+        # Update checkpoint in memory 
         processed_files.update(batch_files)
 
     print("All batches processed successfully.")
