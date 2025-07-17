@@ -57,7 +57,7 @@
 
 #### Bulk Download from OpenCaselist (PF / LD / CX)
   
-  OpenCaselist.org allows you to bulk-download full cases from tournaments in `.docx` and `.pdf` formats.
+  OpenCaselist allows you to bulk-download full cases from tournaments in `.docx` and `.pdf` formats.
   
   **Steps to process these:**
   
@@ -81,7 +81,7 @@
   
   #### 2. Hugging Face Dataset (`Yusuf5/OpenCaselist`)
   
-  The Hugging Face dataset contains pre-tokenized cards from multiple debate events. You can filter and load these cards directly for use in DebateVault.
+  The DebateSUm OpenCaselist dataset contains pre-tokenized cards from multiple debate events. You can filter and load these cards directly for use in DebateVault.
   
   **Steps to use the dataset:**
   
