@@ -1,1 +1,8 @@
+fastapi
+uvicorn
+python-docx
+PyMuPDF
+beautifulsoup4
+pandas
+tqdm
 
