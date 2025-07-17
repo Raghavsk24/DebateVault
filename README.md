@@ -5,10 +5,10 @@
 
 ## Features
 
-- Search 600K+ cardsusing FastAPI backend with paginated JSON API
+- Search 600K+ cards using FastAPI backend with paginated JSON API
 - Filter cards by side (AFF or NEG), event (LD, PF or CX), topic and year (2014-2024)
 - Directly copy cards onto clipboard and download original case file from OpenCaseList
-- High-Speed search with infinite scrolling, cards ranked by relevance and duplication count (how manny other cards existed in the original datset with the same tagline)
+- High-Speed search with infinite scrolling, cards ranked by relevance and duplication count (how many other cards existed in the original datset with the same tagline)
 
 
 
